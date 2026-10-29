@@ -41,7 +41,11 @@ La imagen recomendada es `php:8.5-cli`, la rama estable más nueva y con soporte
 | ![Servidores](docs/screenshots/servidores.jpg) | ![playit.gg](docs/screenshots/playit.jpg) |
 | **Gestor de archivos** | **Editor** |
 | ![Archivos](docs/screenshots/archivos.jpg) | ![Editor](docs/screenshots/editor.jpg) |
-| **Startup** | |
+| **Plugins y mods (Modrinth)** | **Elegir versión e instalar con dependencias** |
+| ![Plugins](docs/screenshots/plugins.jpg) | ![Versiones de un plugin](docs/screenshots/plugins-versiones.jpg) |
+| **Plugins instalados** | **Backups** |
+| ![Plugins instalados](docs/screenshots/plugins-instalados.jpg) | ![Backups](docs/screenshots/backups.jpg) |
+| **Startup: Java y versiones de MCJars** | |
 | ![Startup](docs/screenshots/startup.jpg) | |
 
 ## Instalación en ZimaOS / CasaOS
