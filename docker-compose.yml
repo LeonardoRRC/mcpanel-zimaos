@@ -4,7 +4,7 @@
 name: mcpanel
 services:
   mcpanel:
-    image: php:8.3-cli
+    image: php:8.5-cli
     container_name: mcpanel
     # Host networking: the panel and every Minecraft port are reachable directly on the ZimaOS IP.
     network_mode: host

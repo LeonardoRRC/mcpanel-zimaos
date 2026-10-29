@@ -33,4 +33,4 @@
 <div class="dropzone" id="dropzone"><div><i class="fa-solid fa-cloud-arrow-up"></i> Suelta para subir</div></div>
 <div class="menu" id="row-menu" style="position:fixed"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.44.0/ace.min.js" defer></script>

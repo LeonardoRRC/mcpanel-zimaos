@@ -2,7 +2,15 @@
 
 Panel web en PHP para administrar servidores de Minecraft en casa. Está pensado para [ZimaOS](https://www.zimaspace.com/) y CasaOS, pero funciona en cualquier máquina con Docker. Tiene consola en vivo, gestor de archivos, editor de arranque (Startup) con varias versiones de Java, y túneles de [playit.gg](https://playit.gg) para jugar desde internet sin abrir puertos. El diseño está inspirado en el panel de Bloom.host.
 
-No usa base de datos ni hay que compilar nada: corre sobre la imagen oficial `php:8.3-cli`, y Java, los servidores y playit se descargan desde el propio panel.
+No usa base de datos ni hay que compilar nada: corre sobre la imagen oficial `php:8.5-cli`, y Java, los servidores y playit se descargan desde el propio panel.
+
+## Requisitos
+
+- **PHP 8.3 o superior.** El panel no arranca con versiones anteriores.
+- **PHP con los parches del 21 de octubre de 2026:** 8.3.36, 8.4.27, 8.5.12 o posteriores. Esas versiones corrigen *php2shell*, dos fallos de ejecución remota de código sin autenticación que se están explotando activamente ([CVE-2026-109618 y CVE-2026-109619](https://www.cisa.gov/news-events/alerts/2026/10/21/critical-vulnerabilities-php-require-immediate-patching)). También arreglan fallos del servidor integrado `php -S`, que es el que usa el panel. Si tu PHP es anterior, el panel muestra un aviso rojo en la parte superior.
+- Linux (o WSL/Docker) con `bash`, `tar` y las extensiones `curl` y `posix`, que ya vienen en las imágenes oficiales de PHP.
+
+La imagen recomendada es `php:8.5-cli`, la rama estable más nueva y con soporte activo; `php:8.4-cli` y `php:8.3-cli` también funcionan. Las etiquetas `8.x-cli` reciben los parches de seguridad, pero Docker solo los descarga cuando vuelves a bajar la imagen (`docker pull`, o "Actualizar" en ZimaOS).
 
 ![Consola](docs/screenshots/consola.jpg)
 
@@ -49,7 +57,7 @@ git clone https://github.com/LeonardoRRC/mcpanel-zimaos.git /opt/mcpanel/app
 docker run -d --name mcpanel --network host --init --restart unless-stopped \
   -e DATA_DIR=/data -e PANEL_PORT=8090 \
   -v /opt/mcpanel/app:/app -v /opt/mcpanel/data:/data -w /app \
-  php:8.3-cli bash /app/start.sh
+  php:8.5-cli bash /app/start.sh
 ```
 
 ### Variables de entorno
@@ -111,6 +119,7 @@ start.sh    punto de entrada del contenedor
 
 ## Seguridad
 
+- Exige PHP ≥ 8.3, avisa si a tu versión le faltan los parches de php2shell, y arranca con `session.upload_progress.enabled=0`. Esa función no la usa el panel y es la que atacan esos CVE.
 - Las sesiones usan cookies `HttpOnly` y `SameSite=Lax`, todas las acciones POST llevan token CSRF, y un login fallido se ralentiza.
 - El gestor de archivos no puede salir de la carpeta de cada servidor: normaliza rutas y comprueba los enlaces simbólicos con `realpath`.
 - El panel está pensado para tu red local. Si lo expones a internet, ponlo detrás de un proxy con HTTPS (Nginx Proxy Manager, Cloudflare Tunnel, Tailscale…). Para que la gente juegue usa playit.gg; para administrar no hace falta exponer el panel.
@@ -118,7 +127,7 @@ start.sh    punto de entrada del contenedor
 
 ## Desarrollo local
 
-Necesitas Linux o WSL con PHP 8.1+ y las extensiones `curl` y `posix`:
+Necesitas Linux o WSL con PHP 8.3+ (con los parches de octubre de 2026) y las extensiones `curl` y `posix`:
 
 ```bash
 DATA_DIR=$PWD/.data PANEL_PORT=8090 bash start.sh

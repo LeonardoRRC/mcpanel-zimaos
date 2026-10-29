@@ -1,6 +1,27 @@
 <?php
 declare(strict_types=1);
 
+// PHP < 8.3 is out of active support; older branches also miss the php2shell fixes (CVE-2026-109618/109619).
+const MIN_PHP_VERSION = '8.3.0';
+if (version_compare(PHP_VERSION, MIN_PHP_VERSION, '<')) {
+    http_response_code(500);
+    exit('MC Panel requiere PHP ' . MIN_PHP_VERSION . ' o superior (versión actual: ' . PHP_VERSION . ").\n");
+}
+
+/** First release of each branch with the fixes for CVE-2026-109618 / CVE-2026-109619 (21 Oct 2026). */
+const PHP_PATCHED_RELEASES = ['8.3' => '8.3.36', '8.4' => '8.4.27', '8.5' => '8.5.12'];
+
+/** Warning text when the running PHP is older than the patched release of its branch, null if up to date. */
+function php_security_warning(): ?string
+{
+    $branch = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+    $patched = PHP_PATCHED_RELEASES[$branch] ?? null;
+    if ($patched && version_compare(PHP_VERSION, $patched, '<')) {
+        return 'PHP ' . PHP_VERSION . " es vulnerable (CVE-2026-109618 / CVE-2026-109619). Actualiza la imagen a PHP $patched o superior.";
+    }
+    return null;
+}
+
 define('APP_ROOT', dirname(__DIR__));
 define('APP_NAME', getenv('PANEL_NAME') ?: 'MC Panel');
 define('DATA_DIR', rtrim(getenv('DATA_DIR') ?: '/data', '/'));
@@ -70,7 +91,6 @@ function http_get(string $url, int $timeout = 20): string
     $body = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $err = curl_error($ch);
-    curl_close($ch);
     if ($body === false || $code >= 400) {
         throw new RuntimeException("Error al consultar $url (" . ($err ?: "HTTP $code") . ')');
     }
@@ -123,7 +143,6 @@ function http_download(string $url, string $dest, ?callable $progress = null): v
     }
     $ok = curl_exec($ch);
     $err = curl_error($ch);
-    curl_close($ch);
     fclose($fp);
     if (!$ok) {
         @unlink($tmp);

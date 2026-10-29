@@ -89,7 +89,7 @@ async function openEditor(path) {
     });
     let editor;
     if (window.ace) {
-        ace.config.set('basePath', 'https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/');
+        ace.config.set('basePath', 'https://cdnjs.cloudflare.com/ajax/libs/ace/1.44.0/');
         editor = ace.edit(box, {
             theme: 'ace/theme/tomorrow_night', fontSize: 13, showPrintMargin: false, useWorker: false,
             mode: 'ace/mode/' + (MODES[path.split('.').pop().toLowerCase()] || 'text'),

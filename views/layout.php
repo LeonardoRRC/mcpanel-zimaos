@@ -10,7 +10,7 @@ $link = fn(string $p) => $server ? '?s=' . $server->id() . '&p=' . $p : '?p=' . 
     <title><?= e($title) ?> · <?= e(APP_NAME) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link rel="stylesheet" href="<?= asset('css/app.css') ?>">
 </head>
 <body>
@@ -60,6 +60,9 @@ $link = fn(string $p) => $server ? '?s=' . $server->id() . '&p=' . $p : '?p=' . 
             <span class="clock" id="clock"></span>
             <a class="logout" href="?logout=1"><i class="fa-solid fa-right-from-bracket"></i> Salir</a>
         </header>
+        <?php if ($phpWarning = php_security_warning()): ?>
+            <div class="alert-bar"><i class="fa-solid fa-triangle-exclamation"></i> <?= e($phpWarning) ?></div>
+        <?php endif; ?>
         <main class="content">
             <?php require __DIR__ . "/pages/$page.php"; ?>
         </main>
