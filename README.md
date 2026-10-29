@@ -124,6 +124,10 @@ Necesitas Linux o WSL con PHP 8.1+ y las extensiones `curl` y `posix`:
 DATA_DIR=$PWD/.data PANEL_PORT=8090 bash start.sh
 ```
 
+## Licencia
+
+[MIT](LICENSE) © 2026 Leonardo Reynoso. Puedes usarlo, modificarlo y redistribuirlo, siempre que conserves el aviso de copyright.
+
 ---
 
 Hecho para un homelab con ZimaOS. Minecraft es una marca de Mojang/Microsoft; este proyecto no está afiliado a ellos ni a Bloom.host o playit.gg.
