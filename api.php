@@ -145,14 +145,22 @@ try {
             }
             respond(['count' => (new Files(server_or_404()))->upload((string)input('path', ''), $_FILES['files'])]);
 
+        case 'files.copy':
+            $isPost || respond(['error' => 'POST requerido'], 405);
+            respond(['count' => (new Files(server_or_404()))->copy((array)input('paths', []), (string)input('dest', ''))]);
+
         case 'files.extract':
             $isPost || respond(['error' => 'POST requerido'], 405);
-            (new Files(server_or_404()))->extract((string)input('path'));
-            respond(['ok' => true]);
+            respond(['dest' => (new Files(server_or_404()))->extract((string)input('path'), (bool)input('folder', false))]);
 
         case 'files.compress':
             $isPost || respond(['error' => 'POST requerido'], 405);
-            respond(['name' => (new Files(server_or_404()))->compress((array)input('paths', []), (string)input('path', ''))]);
+            respond(['name' => (new Files(server_or_404()))->compress(
+                (array)input('paths', []),
+                (string)input('path', ''),
+                (string)input('name', ''),
+                (string)input('format', 'zip')
+            )]);
 
         // ---------------------------------------------------------- java / software
         case 'java.list':

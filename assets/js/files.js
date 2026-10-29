@@ -115,9 +115,11 @@ async function act(action, body, ok) {
     return r;
 }
 
+const baseName = (path) => path.split('/').pop();
+
 async function rowAction(action, path) {
     const it = itemByPath(path);
-    const name = path.split('/').pop();
+    const name = baseName(path);
     switch (action) {
         case 'open': return it.dir ? load(path) : it.editable ? openEditor(path) : download(path);
         case 'edit': return openEditor(path);
@@ -127,11 +129,12 @@ async function rowAction(action, path) {
             if (n && n !== name) act('files.rename', { path, name: n }, 'Renombrado');
             return;
         }
-        case 'extract': return act('files.extract', { path }, 'Descomprimido');
-        case 'compress': return act('files.compress', { paths: [path], path: cwd }, 'Comprimido');
-        case 'move': return movePaths([path]);
-        case 'delete':
-            if (await confirmDialog('Borrar', `¿Borrar <b>${esc(name)}</b>? No se puede deshacer.`, 'Borrar')) act('files.delete', { paths: [path] }, 'Borrado');
+        case 'extract': return extractArchive(path, false);
+        case 'extract-folder': return extractArchive(path, true);
+        case 'compress': return compressPaths([path]);
+        case 'move': return transferPaths([path], 'move');
+        case 'copy': return transferPaths([path], 'copy');
+        case 'delete': return deletePaths([path]);
     }
 }
 
@@ -139,40 +142,128 @@ function download(path) {
     location.href = 'api.php?' + new URLSearchParams({ a: 'files.download', id: sid(), path });
 }
 
-async function movePaths(paths) {
-    const dest = await promptDialog('Mover a', 'Carpeta de destino (relativa a la raíz del servidor)', '/' + cwd, 'Mover');
-    if (dest !== null) act('files.move', { paths, dest }, 'Movido');
+async function deletePaths(paths) {
+    const what = paths.length === 1 ? `<b>${esc(baseName(paths[0]))}</b>` : `${paths.length} elementos`;
+    if (await confirmDialog('Borrar', `¿Borrar ${what}? No se puede deshacer.`, 'Borrar')) {
+        act('files.delete', { paths }, 'Borrado');
+    }
 }
 
-function openRowMenu(btn, path) {
-    const it = itemByPath(path);
-    const menu = $('#row-menu');
-    const entries = [
-        it.editable && ['edit', 'fa-pen', 'Editar'],
-        ['rename', 'fa-i-cursor', 'Renombrar'],
-        ['move', 'fa-arrow-right-arrow-left', 'Mover'],
-        !it.dir && ['download', 'fa-download', 'Descargar'],
-        it.archive && ['extract', 'fa-box-open', 'Descomprimir'],
-        ['compress', 'fa-file-zipper', 'Comprimir'],
-        ['delete', 'fa-trash', 'Borrar'],
-    ].filter(Boolean);
-    menu.innerHTML = entries.map(([a, i, l]) => `<button data-act="${a}" ${a === 'delete' ? 'style="color:#f87171"' : ''}><i class="fa-solid ${i}"></i>${l}</button>`).join('');
-    menu.dataset.path = path;
-    const r = btn.getBoundingClientRect();
-    menu.classList.add('open');
-    menu.style.left = Math.min(r.right - 170, innerWidth - 190) + 'px';
-    menu.style.top = Math.min(r.bottom + 4, innerHeight - menu.offsetHeight - 10) + 'px';
-    menu.style.minWidth = '170px';
+async function extractArchive(path, folder) {
+    const r = await act('files.extract', { path, folder }, null);
+    if (r) toast(folder ? `Descomprimido en /${r.dest}` : 'Descomprimido');
 }
+
+/** Ask for archive name and format, then compress. */
+function compressPaths(paths) {
+    const form = document.createElement('form');
+    const suggested = paths.length === 1 ? baseName(paths[0]).replace(/\.(zip|tar\.gz|tgz)$/i, '') : 'archivo';
+    form.innerHTML = `
+        <label class="field"><span>Nombre del archivo</span><input class="input dark" name="name" value="${esc(suggested)}" required></label>
+        <label class="field" style="margin:0"><span>Formato</span>
+            <select class="input dark" name="format">
+                <option value="zip">.zip (compatible con Windows)</option>
+                <option value="tar.gz">.tar.gz (más rápido, conserva permisos)</option>
+            </select></label>
+        <p class="hint">${paths.length} elemento(s) de /${esc(cwd)}</p>`;
+    const run = async () => {
+        if (!form.reportValidity()) return;
+        const { name, format } = Object.fromEntries(new FormData(form));
+        m.close();
+        const r = await act('files.compress', { paths, path: cwd, name, format });
+        if (r) toast('Creado ' + r.name);
+    };
+    form.onsubmit = (e) => { e.preventDefault(); run(); };
+    const m = modal({ title: 'Comprimir', body: form, foot: [button('Cancelar', '', () => m.close()), button('<i class="fa-solid fa-file-zipper"></i> Comprimir', 'btn-primary', run)] });
+}
+
+/** Folder picker that browses the server's directories. Resolves to a relative path or null. */
+function pickFolder(title, okLabel, start = cwd, exclude = []) {
+    return new Promise((resolve) => {
+        let current = start;
+        let done = false;
+        const body = document.createElement('div');
+        body.innerHTML = `<div class="crumbs" data-crumbs style="margin-bottom:10px"></div><div class="folder-list" data-list></div>`;
+        const ok = button(`<i class="fa-solid fa-check"></i> ${esc(okLabel)}`, 'btn-primary', () => { done = true; m.close(); resolve(current); });
+        const m = modal({ title, body, foot: [button('Cancelar', '', () => m.close()), ok], onClose: () => { if (!done) resolve(null); } });
+        const show = async (path) => {
+            const r = await attempt(() => api('files.list', { id: sid(), path }));
+            if (!r) return;
+            current = r.path;
+            let acc = '';
+            $('[data-crumbs]', body).innerHTML = `<a href="#" data-to=""><i class="fa-solid fa-house"></i></a>` + (current ? current.split('/') : [])
+                .map((p) => { acc = join(acc, p); return `<span class="sep">/</span><a href="#" data-to="${esc(acc)}">${esc(p)}</a>`; }).join('');
+            const dirs = r.items.filter((i) => i.dir && !exclude.includes(join(current, i.name)));
+            $('[data-list]', body).innerHTML = dirs.length
+                ? dirs.map((d) => `<button type="button" class="folder-item" data-to="${esc(join(current, d.name))}"><i class="fa-solid fa-folder"></i>${esc(d.name)}</button>`).join('')
+                : '<p class="muted" style="margin:6px 2px">Sin subcarpetas</p>';
+            // Moving into the folder the items already live in does nothing.
+            ok.disabled = exclude.includes(current);
+        };
+        body.addEventListener('click', (e) => {
+            const to = e.target.closest('[data-to]');
+            if (to) { e.preventDefault(); show(to.dataset.to); }
+        });
+        show(start);
+    });
+}
+
+async function transferPaths(paths, mode) {
+    const isMove = mode === 'move';
+    const dest = await pickFolder(isMove ? 'Mover a...' : 'Copiar a...', isMove ? 'Mover aquí' : 'Copiar aquí', cwd, isMove ? paths : []);
+    if (dest === null) return;
+    if (isMove && dest === cwd) return toast('Ya está en esa carpeta', 'error');
+    act(isMove ? 'files.move' : 'files.copy', { paths, dest }, isMove ? 'Movido a /' + dest : 'Copiado a /' + dest);
+}
+
+function menuEntries(path) {
+    const it = itemByPath(path);
+    return [
+        ['open', it.dir ? 'fa-folder-open' : 'fa-arrow-up-right-from-square', it.dir ? 'Abrir' : it.editable ? 'Editar' : 'Descargar'],
+        null,
+        ['rename', 'fa-i-cursor', 'Renombrar'],
+        ['move', 'fa-arrow-right-arrow-left', 'Mover...'],
+        ['copy', 'fa-copy', 'Copiar...'],
+        null,
+        ['download', 'fa-download', it.dir ? 'Descargar (.tar.gz)' : 'Descargar'],
+        ['compress', 'fa-file-zipper', 'Comprimir...'],
+        it.archive && ['extract', 'fa-box-open', 'Descomprimir aquí'],
+        it.archive && ['extract-folder', 'fa-folder-plus', 'Descomprimir en carpeta'],
+        null,
+        ['delete', 'fa-trash', 'Borrar', true],
+    ].filter((e) => e !== false && e !== undefined);
+}
+
+/** Show the actions menu next to a button, or at the mouse position for right-clicks. */
+function openRowMenu(path, anchor) {
+    const menu = $('#row-menu');
+    menu.innerHTML = menuEntries(path).map((e) => e === null
+        ? '<div class="menu-sep"></div>'
+        : `<button data-act="${e[0]}" class="${e[3] ? 'danger' : ''}"><i class="fa-solid ${e[1]}"></i>${e[2]}</button>`).join('');
+    menu.dataset.path = path;
+    menu.classList.add('open');
+    const w = menu.offsetWidth, h = menu.offsetHeight;
+    let x, y;
+    if (anchor instanceof MouseEvent) {
+        x = anchor.clientX; y = anchor.clientY;
+    } else {
+        const r = anchor.getBoundingClientRect();
+        x = r.right - w; y = r.bottom + 4;
+    }
+    menu.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + 'px';
+    menu.style.top = Math.max(8, y + h > innerHeight - 8 ? y - h - (anchor instanceof MouseEvent ? 0 : 36) : y) + 'px';
+}
+const closeRowMenu = () => $('#row-menu').classList.remove('open');
 
 $('#row-menu').addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
-    $('#row-menu').classList.remove('open');
+    closeRowMenu();
     rowAction(b.dataset.act, $('#row-menu').dataset.path);
 });
-document.addEventListener('click', (e) => { if (!e.target.closest('[data-row-menu], #row-menu')) $('#row-menu').classList.remove('open'); });
-document.addEventListener('scroll', () => $('#row-menu').classList.remove('open'), true);
+document.addEventListener('click', (e) => { if (!e.target.closest('[data-row-menu], #row-menu')) closeRowMenu(); });
+document.addEventListener('scroll', closeRowMenu, true);
+window.addEventListener('resize', closeRowMenu);
 
 $('#crumbs').addEventListener('click', (e) => {
     const a = e.target.closest('[data-go]');
@@ -185,7 +276,11 @@ $('#file-rows').addEventListener('click', (e) => {
     if (go) return load(go.dataset.go);
     if (!tr?.dataset.path) return;
     const path = tr.dataset.path;
-    if (e.target.closest('[data-row-menu]')) return openRowMenu(e.target.closest('[data-row-menu]'), path);
+    const menuBtn = e.target.closest('[data-row-menu]');
+    if (menuBtn) {
+        const open = $('#row-menu').classList.contains('open') && $('#row-menu').dataset.path === path;
+        return open ? closeRowMenu() : openRowMenu(path, menuBtn);
+    }
     if (e.target.type === 'checkbox') {
         e.target.checked ? selected.add(path) : selected.delete(path);
         tr.classList.toggle('selected', e.target.checked);
@@ -194,17 +289,30 @@ $('#file-rows').addEventListener('click', (e) => {
     if (e.target.closest('[data-open]')) rowAction('open', path);
 });
 
+$('#file-rows').addEventListener('contextmenu', (e) => {
+    const tr = e.target.closest('tr[data-path]');
+    if (!tr) return;
+    e.preventDefault();
+    openRowMenu(tr.dataset.path, e);
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.target.closest('input, textarea, select, .modal-back, .ace_editor')) return;
+    if (e.key === 'Delete' && selected.size) { e.preventDefault(); deletePaths([...selected]); }
+    if (e.key === 'Escape') { closeRowMenu(); if (selected.size) { selected.clear(); render(); } }
+    if (e.key === 'F2' && selected.size === 1) { e.preventDefault(); rowAction('rename', [...selected][0]); }
+});
+
 $('#check-all').addEventListener('change', (e) => {
     selected.clear();
     if (e.target.checked) items.forEach((i) => selected.add(join(cwd, i.name)));
     render();
 });
 
-$('#bulk-delete').onclick = async () => {
-    if (await confirmDialog('Borrar', `¿Borrar ${selected.size} elemento(s)? No se puede deshacer.`, 'Borrar')) act('files.delete', { paths: [...selected] }, 'Borrado');
-};
-$('#bulk-compress').onclick = () => act('files.compress', { paths: [...selected], path: cwd }, 'Comprimido');
-$('#bulk-move').onclick = () => movePaths([...selected]);
+$('#bulk-delete').onclick = () => deletePaths([...selected]);
+$('#bulk-compress').onclick = () => compressPaths([...selected]);
+$('#bulk-move').onclick = () => transferPaths([...selected], 'move');
+$('#bulk-copy').onclick = () => transferPaths([...selected], 'copy');
 
 $('#btn-newfolder').onclick = async () => {
     const name = await promptDialog('Nueva carpeta', 'Nombre', '', 'Crear');

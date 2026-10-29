@@ -154,9 +154,13 @@ function watchJob(jobId, title) {
 }
 
 // ------------------------------------------------------------ shell behaviour
+// Dropdowns opened through [data-menu] triggers; other menus (file actions) manage themselves.
 document.addEventListener('click', (e) => {
     const trigger = e.target.closest('[data-menu]');
-    $$('.menu.open').forEach((m) => { if (!trigger || m.id !== trigger.dataset.menu) m.classList.remove('open'); });
+    const managed = new Set($$('[data-menu]').map((t) => t.dataset.menu));
+    $$('.menu.open').forEach((m) => {
+        if (managed.has(m.id) && (!trigger || m.id !== trigger.dataset.menu)) m.classList.remove('open');
+    });
     if (trigger) $('#' + trigger.dataset.menu)?.classList.toggle('open');
 });
 

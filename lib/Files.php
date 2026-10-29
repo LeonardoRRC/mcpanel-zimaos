@@ -190,22 +190,70 @@ final class Files
         return $count;
     }
 
+    /** Stream a file, or a folder as .tar.gz. */
     public function download(string $rel): void
     {
         $f = $this->abs($rel);
-        if (!is_file($f)) {
-            throw new RuntimeException('No es un archivo.');
+        $name = $f === $this->root ? 'servidor' : basename($f);
+        if (is_dir($f)) {
+            header('Content-Type: application/gzip');
+            header('Content-Disposition: attachment; filename="' . rawurlencode($name) . '.tar.gz"; filename*=UTF-8\'\'' . rawurlencode($name) . '.tar.gz');
+            passthru('tar -czf - -C ' . escapeshellarg(dirname($f)) . ' ' . escapeshellarg(basename($f)) . ' 2>/dev/null');
+            return;
         }
         header('Content-Type: application/octet-stream');
         header('Content-Length: ' . filesize($f));
-        header('Content-Disposition: attachment; filename="' . rawurlencode(basename($f)) . '"; filename*=UTF-8\'\'' . rawurlencode(basename($f)));
+        header('Content-Disposition: attachment; filename="' . rawurlencode($name) . '"; filename*=UTF-8\'\'' . rawurlencode($name));
         readfile($f);
     }
 
-    public function extract(string $rel): void
+    /** "world" -> "world (copia)", "a.tar.gz" -> "a (copia).tar.gz", skipping names that exist. */
+    private function uniquePath(string $dir, string $name, string $suffix = 'copia'): string
+    {
+        if (!file_exists("$dir/$name")) {
+            return "$dir/$name";
+        }
+        preg_match('/^(.+?)((?:\.tar)?\.[A-Za-z0-9]{1,10})?$/', $name, $m);
+        $base = $m[1] ?? $name;
+        $ext = $m[2] ?? '';
+        for ($i = 1; ; $i++) {
+            $candidate = "$dir/$base ($suffix" . ($i > 1 ? " $i" : '') . ")$ext";
+            if (!file_exists($candidate)) {
+                return $candidate;
+            }
+        }
+    }
+
+    public function copy(array $rels, string $destDir): int
+    {
+        $dest = $this->abs($destDir);
+        if (!is_dir($dest)) {
+            throw new RuntimeException('El destino no es una carpeta.');
+        }
+        foreach ($rels as $rel) {
+            $from = $this->abs($rel);
+            if ($from === $this->root || str_starts_with($dest . '/', $from . '/')) {
+                throw new RuntimeException('No se puede copiar una carpeta dentro de sí misma.');
+            }
+            $to = $this->uniquePath($dest, basename($from));
+            exec('cp -a ' . escapeshellarg($from) . ' ' . escapeshellarg($to) . ' 2>&1', $out, $code);
+            if ($code !== 0) {
+                throw new RuntimeException('Error al copiar: ' . implode(' ', $out));
+            }
+        }
+        return count($rels);
+    }
+
+    /** Extract next to the archive, or into a new folder named after it. Returns the destination folder. */
+    public function extract(string $rel, bool $intoFolder = false): string
     {
         $f = $this->abs($rel);
         $dest = dirname($f);
+        if ($intoFolder) {
+            $base = preg_replace('/(\.tar\.gz|\.tgz|\.tar|\.zip)$/i', '', basename($f)) ?: 'extraido';
+            $dest = $this->uniquePath($dest, $base, 'extraído');
+            mkdir($dest, 0775, true);
+        }
         if (preg_match('/\.zip$/i', $f)) {
             if (class_exists(ZipArchive::class)) {
                 $zip = new ZipArchive();
@@ -220,32 +268,83 @@ final class Files
                 $zip->extractTo($dest);
                 $zip->close();
             } else {
-                (new PharData($f))->extractTo($dest, null, true);
+                $phar = new PharData($f);
+                $prefix = 'phar://' . $phar->getPath() . '/';
+                foreach (new RecursiveIteratorIterator($phar) as $entry) {
+                    $inner = substr($entry->getPathname(), strlen($prefix));
+                    if (self::clean($inner) !== $inner) {
+                        throw new RuntimeException('El zip contiene rutas no seguras.');
+                    }
+                }
+                $phar->extractTo($dest, null, true);
             }
-            return;
+        } else {
+            exec('tar -xf ' . escapeshellarg($f) . ' -C ' . escapeshellarg($dest) . ' --no-same-owner 2>&1', $out, $code);
+            if ($code !== 0) {
+                throw new RuntimeException('Error al descomprimir: ' . implode(' ', $out));
+            }
         }
-        exec('tar -xf ' . escapeshellarg($f) . ' -C ' . escapeshellarg($dest) . ' --no-same-owner 2>&1', $out, $code);
-        if ($code !== 0) {
-            throw new RuntimeException('Error al descomprimir: ' . implode(' ', $out));
-        }
+        return ltrim(substr($dest, strlen($this->root)), '/');
     }
 
-    public function compress(array $rels, string $relDir): string
+    /** Create a .zip or .tar.gz from items of one folder. Returns the archive name. */
+    public function compress(array $rels, string $relDir, string $name = '', string $format = 'zip'): string
     {
         $dir = $this->abs($relDir);
-        $name = 'archivo-' . date('Ymd-His') . '.tar.gz';
-        $args = '';
+        $format = $format === 'tar.gz' ? 'tar.gz' : 'zip';
+        $items = [];
         foreach ($rels as $rel) {
             $p = $this->abs($rel);
-            if (dirname($p) !== $dir) {
+            if ($p === $this->root || dirname($p) !== $dir) {
                 throw new RuntimeException('Selecciona elementos de la misma carpeta.');
             }
-            $args .= ' ' . escapeshellarg(basename($p));
+            $items[] = basename($p);
         }
-        exec('tar -czf ' . escapeshellarg("$dir/$name") . ' -C ' . escapeshellarg($dir) . $args . ' 2>&1', $out, $code);
-        if ($code !== 0) {
-            throw new RuntimeException('Error al comprimir: ' . implode(' ', $out));
+        if (!$items) {
+            throw new RuntimeException('No hay nada que comprimir.');
         }
-        return $name;
+        $name = preg_replace('/(\.tar\.gz|\.tgz|\.zip)$/i', '', trim(str_replace(['/', '\\'], '', $name)));
+        if ($name === '' || $name === '.' || $name === '..') {
+            $name = count($items) === 1 ? $items[0] : 'archivo-' . date('Ymd-His');
+        }
+        $target = $this->uniquePath($dir, "$name.$format", '2');
+
+        if ($format === 'tar.gz') {
+            $args = implode(' ', array_map('escapeshellarg', $items));
+            exec('tar -czf ' . escapeshellarg($target) . ' -C ' . escapeshellarg($dir) . " $args 2>&1", $out, $code);
+            if ($code !== 0) {
+                @unlink($target);
+                throw new RuntimeException('Error al comprimir: ' . implode(' ', $out));
+            }
+            return basename($target);
+        }
+
+        // Map of path inside the zip => source file (null for directories).
+        $entries = [];
+        foreach ($items as $item) {
+            $path = "$dir/$item";
+            if (!is_dir($path) || is_link($path)) {
+                $entries[$item] = $path;
+                continue;
+            }
+            $entries[$item . '/'] = null;
+            $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
+            foreach ($it as $file) {
+                $local = $item . '/' . substr($file->getPathname(), strlen($path) + 1);
+                $entries[$file->isDir() ? $local . '/' : $local] = $file->isDir() ? null : $file->getPathname();
+            }
+        }
+        $zip = class_exists(ZipArchive::class) ? new ZipArchive() : new PharData($target, 0, null, Phar::ZIP);
+        if ($zip instanceof ZipArchive) {
+            $zip->open($target, ZipArchive::CREATE | ZipArchive::EXCL);
+        }
+        foreach ($entries as $local => $src) {
+            $src === null ? $zip->addEmptyDir(rtrim($local, '/')) : $zip->addFile($src, $local);
+        }
+        if ($zip instanceof ZipArchive) {
+            $zip->close();
+        }
+        unset($zip);
+        return basename($target);
     }
 }

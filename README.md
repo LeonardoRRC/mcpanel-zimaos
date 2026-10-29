@@ -7,7 +7,7 @@ No usa base de datos ni hay que compilar nada: corre sobre la imagen oficial `ph
 ## Requisitos
 
 - **PHP 8.3 o superior.** El panel no arranca con versiones anteriores.
-- **PHP con los parches del 21 de octubre de 2026:** 8.3.36, 8.4.27, 8.5.12 o posteriores. Esas versiones corrigen *php2shell*, dos fallos de ejecución remota de código sin autenticación que se están explotando activamente ([CVE-2026-109618 y CVE-2026-109619](https://www.cisa.gov/news-events/alerts/2026/10/21/critical-vulnerabilities-php-require-immediate-patching)). También arreglan fallos del servidor integrado `php -S`, que es el que usa el panel. Si tu PHP es anterior, el panel muestra un aviso rojo en la parte superior.
+- **PHP con los parches del 21 de octubre de 2026:** 8.3.36, 8.4.27, 8.5.12 o posteriores. Ojo: las distribuciones como Debian o Ubuntu a veces aplican parches sin cambiar el número de versión. En ese caso el aviso puede ser una falsa alarma; con las imágenes oficiales de Docker es exacto. Esas versiones corrigen *php2shell*, dos fallos de ejecución remota de código sin autenticación que se están explotando activamente ([CVE-2026-109618 y CVE-2026-109619](https://www.cisa.gov/news-events/alerts/2026/10/21/critical-vulnerabilities-php-require-immediate-patching)). También arreglan fallos del servidor integrado `php -S`, que es el que usa el panel. Si tu PHP es anterior, el panel muestra un aviso rojo en la parte superior.
 - Linux (o WSL/Docker) con `bash`, `tar` y las extensiones `curl` y `posix`, que ya vienen en las imágenes oficiales de PHP.
 
 La imagen recomendada es `php:8.5-cli`, la rama estable más nueva y con soporte activo; `php:8.4-cli` y `php:8.3-cli` también funcionan. Las etiquetas `8.x-cli` reciben los parches de seguridad, pero Docker solo los descarga cuando vuelves a bajar la imagen (`docker pull`, o "Actualizar" en ZimaOS).
@@ -20,7 +20,7 @@ La imagen recomendada es `php:8.5-cli`, la rama estable más nueva y con soporte
 | --- | --- |
 | **Consola** | Log en tiempo real con colores (WARN/ERROR resaltados), envío de comandos con historial ↑/↓, botones Iniciar / Reiniciar / Detener / Kill, y tarjetas y gráficas de CPU, RAM y disco. |
 | **playit.gg** | Interruptor para exponer el servidor a internet. La primera vez muestra un enlace de vinculación y detecta solo cuando lo apruebas. Luego muestra la dirección pública con botón para copiarla. |
-| **Archivos** | Navegar, editar con resaltado de sintaxis (Ace, Ctrl+S guarda), subir archivos y carpetas enteras arrastrándolos, descargar, renombrar, mover, borrar, comprimir y descomprimir `.zip` / `.tar.gz`. |
+| **Archivos** | Navegar, editar con resaltado de sintaxis (Ace, Ctrl+S guarda) y subir archivos o carpetas enteras arrastrándolos. Desde el menú ⋯ o con clic derecho: renombrar, mover y copiar (con selector de carpetas), descargar (las carpetas como `.tar.gz`), comprimir en `.zip` o `.tar.gz`, descomprimir "aquí" o "en carpeta", y borrar. También permite selección múltiple y atajos de teclado (Supr, F2, Esc). |
 | **Startup** | Comando de inicio editable con variables, Java 8/11/17/21/25 (Eclipse Temurin, se instalan con un clic), RAM, flags de Aikar, archivo jar, aceptación del EULA, reinicio automático e inicio al arrancar el sistema. |
 | **Software** | Instala o cambia la versión de Paper, Purpur, Vanilla o Fabric. Elige solo la versión de Java que necesita cada versión de Minecraft. |
 | **Varios servidores** | Cada uno tiene su puerto, su carpeta y su propio túnel de playit. |
