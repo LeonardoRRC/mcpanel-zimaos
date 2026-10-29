@@ -1,7 +1,7 @@
 <?php /** @var Server $server */ ?>
 <div class="page-head">
     <h1><?= e($server->cfg['name']) ?></h1>
-    <span class="badge orange"><?= e((Software::TYPES[$server->cfg['software']['type']] ?? 'Custom') . ' ' . ($server->cfg['software']['version'] ?? '')) ?></span>
+    <span class="badge orange"><?= e(Software::label($server->cfg['software']['type'] ?? 'Custom') . ' ' . ($server->cfg['software']['version'] ?? '')) ?></span>
     <div class="actions power">
         <button class="btn btn-green" data-power="start"><i class="fa-solid fa-play"></i> Iniciar</button>
         <button class="btn btn-primary" data-power="restart"><i class="fa-solid fa-rotate-right"></i> Reiniciar</button>

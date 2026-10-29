@@ -64,27 +64,39 @@ $('#java-list').addEventListener('click', async (e) => {
 });
 
 // ------------------------------------------------------------ software
-const swType = $('#sw-type'), swVersion = $('#sw-version');
-async function loadVersions() {
-    swVersion.innerHTML = '<option>Cargando...</option>';
-    swVersion.disabled = true;
-    const r = await attempt(() => api('software.versions', { type: swType.value }));
-    swVersion.disabled = false;
-    if (!r) { swVersion.innerHTML = '<option value="">Sin conexión</option>'; return; }
-    const cur = PANEL.cfg.software?.version;
-    swVersion.innerHTML = r.versions.map((v) => `<option ${v === cur ? 'selected' : ''}>${esc(v)}</option>`).join('');
+const swType = $('#sw-type'), swVersion = $('#sw-version'), swBuild = $('#sw-build'), swSnaps = $('#sw-snapshots');
+const installed = PANEL.cfg.software || {};
+const sameType = () => swType.value === String(installed.type || '').toUpperCase();
+
+async function refreshVersions() {
+    $('#sw-desc').textContent = swType.selectedOptions[0]?.dataset.desc || '';
+    await loadVersions(swVersion, swType.value, { current: sameType() ? installed.version : null, snapshots: swSnaps.checked });
+    refreshBuilds();
 }
-swType.onchange = loadVersions;
+
+async function refreshBuilds() {
+    swBuild.innerHTML = '<option value="">Cargando...</option>';
+    swBuild.disabled = true;
+    if (!swVersion.value) { swBuild.innerHTML = '<option value="">—</option>'; return; }
+    const r = await attempt(() => api('software.builds', { type: swType.value, version: swVersion.value }));
+    swBuild.disabled = false;
+    if (!r) { swBuild.innerHTML = '<option value="">Última</option>'; return; }
+    const cur = sameType() && swVersion.value === installed.version ? installed.build_id : null;
+    swBuild.innerHTML = r.builds.map((b, i) => `<option value="${b.id}" ${b.id === cur ? 'selected' : ''}>${esc(b.name)}${i === 0 ? ' (última)' : ''}${b.experimental ? ' · experimental' : ''}</option>`).join('');
+}
+swType.onchange = refreshVersions;
+swSnaps.onchange = refreshVersions;
+swVersion.onchange = refreshBuilds;
 
 $('#sw-install').onclick = async () => {
-    const type = swType.value, version = swVersion.value;
+    const type = swType.value, version = swVersion.value, build = Number(swBuild.value) || null;
     if (!version) return;
     const ok = await confirmDialog('Instalar versión',
-        `Se descargará <b>${esc(swType.selectedOptions[0].text)} ${esc(version)}</b> y reemplazará <code>${esc(form.elements.jar.value)}</code>. ¿Continuar?`,
+        `Se descargará <b>${esc(swType.selectedOptions[0].text)} ${esc(version)} ${esc(swBuild.selectedOptions[0]?.text.replace(' (última)', '') || '')}</b> y reemplazará <code>${esc(form.elements.jar.value)}</code>. ¿Continuar?`,
         'Instalar', false);
     if (!ok) return;
     if (dirty && !await save(true)) return;
-    const r = await attempt(() => api('software.install', { id: sid() }, { type, version }));
+    const r = await attempt(() => api('software.install', { id: sid() }, { type, version, build }));
     if (r && await watchJob(r.job, 'Instalando servidor')) {
         dirty = false;
         location.reload();
@@ -92,4 +104,4 @@ $('#sw-install').onclick = async () => {
 };
 
 loadJava();
-loadVersions();
+refreshVersions();

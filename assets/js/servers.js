@@ -1,29 +1,18 @@
 'use strict';
 
-/** Fill a <select> with the versions of a server software type. */
-async function loadVersions(select, type, current) {
-    select.innerHTML = '<option value="">Cargando...</option>';
-    select.disabled = true;
-    try {
-        const { versions } = await api('software.versions', { type });
-        select.innerHTML = versions.map((v) => `<option ${v === current ? 'selected' : ''}>${esc(v)}</option>`).join('');
-    } catch (e) {
-        select.innerHTML = '<option value="">Sin conexión</option>';
-        toast(e.message, 'error');
-    }
-    select.disabled = false;
-}
-
 $('#new-server').onclick = () => {
     const form = $('#tpl-new-server').content.firstElementChild.cloneNode(true);
-    const type = $('[name=type]', form), version = $('[name=version]', form);
-    type.onchange = () => loadVersions(version, type.value);
-    loadVersions(version, type.value);
+    const type = $('[name=type]', form), version = $('[name=version]', form), snaps = $('[name=snapshots]', form);
+    const refresh = () => loadVersions(version, type.value, { snapshots: snaps.checked });
+    type.onchange = refresh;
+    snaps.onchange = refresh;
+    refresh();
 
     const submit = async () => {
         if (!form.reportValidity()) return;
         const data = Object.fromEntries(new FormData(form));
         data.eula = !!data.eula;
+        delete data.snapshots;
         const res = await attempt(() => api('server.create', {}, data));
         if (!res) return;
         m.close();

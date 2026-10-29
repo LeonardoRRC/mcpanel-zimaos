@@ -39,11 +39,12 @@ final class Server
             'startup' => self::DEFAULT_STARTUP,
             'flags_preset' => 'aikar',
             'custom_flags' => '',
-            'software' => ['type' => 'paper', 'version' => ''],
+            'software' => ['type' => 'PAPER', 'version' => ''],
             'auto_restart' => false,
             'autostart' => false,
             'eula' => false,
             'playit' => false,
+            'backup' => ['interval' => 0, 'keep' => 7, 'ignore' => ''],
         ];
     }
 
@@ -103,6 +104,12 @@ final class Server
         $c['autostart'] = (bool)$c['autostart'];
         $c['eula'] = (bool)$c['eula'];
         $c['playit'] = (bool)$c['playit'];
+        $b = (array)($c['backup'] ?? []) + ['interval' => 0, 'keep' => 7, 'ignore' => ''];
+        $c['backup'] = [
+            'interval' => array_key_exists((int)$b['interval'], Backup::INTERVALS) ? (int)$b['interval'] : 0,
+            'keep' => max(1, min(100, (int)$b['keep'])),
+            'ignore' => mb_substr(str_replace(chr(13), '', (string)$b['ignore']), 0, 2000),
+        ];
         $this->save();
     }
 
@@ -254,7 +261,7 @@ final class Server
 
         spawn_detached([
             'bash', APP_ROOT . '/scripts/run-server.sh',
-            $run, $this->dir(), $this->startupCommand(),
+            $run, $this->dir(), $this->startupCommand(), dirname(Java::binary((int)$this->cfg['java']), 2),
         ]);
         // Wait briefly so the next status poll already sees the process.
         for ($i = 0; $i < 20 && !$this->wrapperPid(); $i++) {

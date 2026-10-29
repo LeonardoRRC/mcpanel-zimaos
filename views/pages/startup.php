@@ -57,17 +57,22 @@
         <div class="card">
             <div class="card-head"><i class="fa-solid fa-cube"></i> Software del servidor</div>
             <div class="card-body">
-                <p class="muted" style="margin-top:0">Instalado: <b style="color:var(--white)"><?= e($c['software']['build'] ?? ((Software::TYPES[$c['software']['type']] ?? '') . ' ' . ($c['software']['version'] ?? '—'))) ?></b></p>
+                <p class="muted" style="margin-top:0">Instalado: <b style="color:var(--white)"><?= e($c['software']['build'] ?? (Software::label($c['software']['type'] ?? '') . ' ' . ($c['software']['version'] ?? '—'))) ?></b></p>
                 <div class="row">
                     <label class="field"><span>Tipo</span>
                         <select class="input dark" id="sw-type">
-                            <?php foreach (Software::TYPES as $k => $label): ?><option value="<?= $k ?>" <?= $c['software']['type'] === $k ? 'selected' : '' ?>><?= $label ?></option><?php endforeach; ?>
+                            <?php $selectedType = $c['software']['type']; require dirname(__DIR__) . '/software-options.php'; ?>
                         </select>
                     </label>
                     <label class="field"><span>Versión</span><select class="input dark" id="sw-version"></select></label>
                 </div>
+                <div class="row">
+                    <label class="field"><span>Build</span><select class="input dark" id="sw-build"></select></label>
+                    <label class="switch" style="align-self:end;margin-bottom:22px"><input type="checkbox" id="sw-snapshots"><span class="track"></span><span>Snapshots</span></label>
+                </div>
+                <p class="hint" id="sw-desc" style="margin-top:-6px"></p>
                 <button type="button" class="btn btn-primary" id="sw-install"><i class="fa-solid fa-download"></i> Instalar / cambiar versión</button>
-                <p class="hint">Reemplaza el archivo <code class="mono"><?= e($c['jar']) ?></code> y selecciona la versión de Java adecuada. Tus mundos y plugins no se tocan; haz una copia antes de bajar de versión.</p>
+                <p class="hint">Versiones de <a href="https://mcjars.app" target="_blank" rel="noopener">MCJars</a>. Reemplaza <code class="mono"><?= e($c['jar']) ?></code> y selecciona la versión de Java adecuada. Tus mundos y plugins no se tocan; haz una copia antes de bajar de versión.</p>
             </div>
         </div>
 

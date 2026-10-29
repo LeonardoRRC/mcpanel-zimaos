@@ -16,7 +16,19 @@ try {
             break;
         case 'software-install':
             $server = Server::find($args[0]) ?? throw new RuntimeException('Servidor no encontrado.');
-            Software::install($server, $args[1], $args[2], $job);
+            Software::install($server, $args[1], $args[2], isset($args[3]) ? (int)$args[3] : null, $job);
+            break;
+        case 'modrinth-install':
+            $server = Server::find($args[0]) ?? throw new RuntimeException('Servidor no encontrado.');
+            Modrinth::for($server, $args[1])->install($args[2], (bool)$args[3], $job);
+            break;
+        case 'backup-create':
+            $server = Server::find($args[0]) ?? throw new RuntimeException('Servidor no encontrado.');
+            Backup::create($server, (string)$args[1], (bool)$args[2], $job);
+            break;
+        case 'backup-restore':
+            $server = Server::find($args[0]) ?? throw new RuntimeException('Servidor no encontrado.');
+            Backup::restore($server, $args[1], $args[2], (bool)$args[3], (bool)$args[4], $job);
             break;
         case 'playit-claim':
             $server = Server::find($args[0]) ?? throw new RuntimeException('Servidor no encontrado.');

@@ -22,7 +22,7 @@
         </div>
         <div class="card-head" style="background:#b91c1c"><i class="fa-solid fa-triangle-exclamation"></i> Zona peligrosa</div>
         <div class="card-body">
-            <p class="muted" style="margin-top:0">Borra el servidor, su mundo, plugins y la vinculación de playit.gg. No se puede deshacer.</p>
+            <p class="muted" style="margin-top:0">Borra el servidor, su mundo, plugins y la vinculación de playit.gg. No se puede deshacer. Las copias de seguridad se conservan y puedes restaurarlas en otro servidor desde Backups.</p>
             <button class="btn btn-red" id="delete-server"><i class="fa-solid fa-trash"></i> Borrar servidor</button>
         </div>
     </div>

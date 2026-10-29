@@ -19,7 +19,7 @@
             <span class="icon"><i class="fa-solid fa-cube"></i></span>
             <span>
                 <span class="name"><?= e($s->cfg['name']) ?></span><br>
-                <span class="muted"><?= e($s->cfg['description'] ?: (Software::TYPES[$s->cfg['software']['type']] ?? '') . ' ' . ($s->cfg['software']['version'] ?? '')) ?></span>
+                <span class="muted"><?= e($s->cfg['description'] ?: Software::label($s->cfg['software']['type'] ?? '') . ' ' . ($s->cfg['software']['version'] ?? '')) ?></span>
             </span>
             <span class="meta">
                 <span><i class="fa-solid fa-network-wired"></i><?= e($s->address()) ?></span>
@@ -38,11 +38,12 @@
         <div class="row">
             <label class="field"><span>Software</span>
                 <select class="input dark" name="type">
-                    <?php foreach (Software::TYPES as $k => $label): ?><option value="<?= $k ?>"><?= $label ?></option><?php endforeach; ?>
+                    <?php $selectedType = 'PAPER'; require dirname(__DIR__) . '/software-options.php'; ?>
                 </select>
             </label>
             <label class="field"><span>Versión</span><select class="input dark" name="version"><option value="">Cargando...</option></select></label>
         </div>
+        <label class="switch" style="margin-bottom:14px"><input type="checkbox" name="snapshots"><span class="track"></span><span>Mostrar snapshots y versiones de prueba</span></label>
         <div class="row">
             <label class="field"><span>Puerto</span><input class="input dark" type="number" name="port" min="1" max="65535" value="<?= 25565 + count($servers) ?>" required></label>
             <label class="field"><span>RAM máxima (MB)</span><input class="input dark" type="number" name="ram_max" min="512" step="256" value="4096" required></label>

@@ -119,6 +119,26 @@ function promptDialog(title, label, value = '', okLabel = 'Guardar') {
     });
 }
 
+/**
+ * Fill a <select> with the Minecraft versions of a server type (from MCJars).
+ * Snapshots and pre-releases only show when asked for, or when one is the current version.
+ */
+async function loadVersions(select, type, { current, snapshots = false } = {}) {
+    select.innerHTML = '<option value="">Cargando...</option>';
+    select.disabled = true;
+    try {
+        const { versions } = await api('software.versions', { type });
+        const shown = versions.filter((v) => snapshots || v.type === 'RELEASE' || v.id === current);
+        select.innerHTML = shown.length
+            ? shown.map((v) => `<option value="${esc(v.id)}" ${v.id === current ? 'selected' : ''}>${esc(v.id)}${v.type === 'RELEASE' ? '' : ' · ' + esc(v.type.toLowerCase())}${v.java ? ' — Java ' + v.java : ''}</option>`).join('')
+            : '<option value="">Sin versiones estables (activa snapshots)</option>';
+    } catch (e) {
+        select.innerHTML = '<option value="">Sin conexión</option>';
+        toast(e.message, 'error');
+    }
+    select.disabled = false;
+}
+
 /** Show a background job's progress in a modal until it finishes. Resolves true on success. */
 function watchJob(jobId, title) {
     return new Promise((resolve) => {

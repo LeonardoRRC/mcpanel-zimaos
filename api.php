@@ -50,12 +50,12 @@ try {
                 'port' => (int)input('port', 25565),
                 'ram_max' => (int)input('ram_max', 4096),
                 'ram_min' => min(1024, (int)input('ram_max', 4096)),
-                'software' => ['type' => input('type', 'paper'), 'version' => input('version', '')],
+                'software' => ['type' => strtoupper((string)input('type', 'PAPER')), 'version' => input('version', '')],
                 'eula' => (bool)input('eula', false),
             ]);
             $job = null;
             if (input('version')) {
-                $job = Job::dispatch('software-install', [$server->id(), (string)input('type'), (string)input('version')], 'Instalar servidor');
+                $job = Job::dispatch('software-install', [$server->id(), (string)input('type'), (string)input('version'), null], 'Instalar servidor');
             }
             respond(['id' => $server->id(), 'job' => $job]);
 
@@ -173,7 +173,11 @@ try {
             respond(['job' => $existing['id'] ?? Job::dispatch('java-install', [(string)$major], "Instalar Java $major")]);
 
         case 'software.versions':
-            respond(['versions' => Software::versions((string)input('type', 'paper'))]);
+            respond(['versions' => Software::versions((string)input('type', 'PAPER'))]);
+
+        case 'software.builds':
+            $builds = Software::builds((string)input('type', 'PAPER'), (string)input('version', ''));
+            respond(['builds' => array_map(fn($b) => array_diff_key($b, ['installation' => 1]), $builds)]);
 
         case 'software.install':
             $isPost || respond(['error' => 'POST requerido'], 405);
@@ -181,14 +185,107 @@ try {
             if ($server->isRunning()) {
                 throw new RuntimeException('Detén el servidor antes de cambiar la versión.');
             }
-            $type = (string)input('type');
-            if (!isset(Software::TYPES[$type])) {
+            $type = strtoupper((string)input('type'));
+            if (!Software::type($type)) {
                 throw new RuntimeException('Tipo no válido.');
             }
-            respond(['job' => Job::dispatch('software-install', [$server->id(), $type, (string)input('version')], 'Instalar servidor')]);
+            $build = input('build') ? (int)input('build') : null;
+            respond(['job' => Job::dispatch('software-install', [$server->id(), $type, (string)input('version'), $build], 'Instalar servidor')]);
 
         case 'job':
             respond(Job::status((string)input('job')) ?? ['status' => 'missing']);
+
+        // ---------------------------------------------------------- plugins / mods (Modrinth)
+        case 'mods.search':
+            respond(Modrinth::for(server_or_404(), (string)input('kind'))->search(
+                trim((string)input('q', '')),
+                (int)input('offset', 0),
+                (string)input('sort', 'relevance')
+            ));
+
+        case 'mods.versions':
+            respond(['versions' => Modrinth::for(server_or_404(), (string)input('kind'))->versions((string)input('project'))]);
+
+        case 'mods.installed':
+            respond(Modrinth::for(server_or_404(), (string)input('kind'))->installed());
+
+        case 'mods.install':
+            $isPost || respond(['error' => 'POST requerido'], 405);
+            $server = server_or_404();
+            $kind = (string)input('kind');
+            Modrinth::for($server, $kind);
+            respond(['job' => Job::dispatch('modrinth-install', [$server->id(), $kind, (string)input('version'), (bool)input('deps', true)], (string)input('title', 'Instalar'))]);
+
+        case 'mods.toggle':
+            $isPost || respond(['error' => 'POST requerido'], 405);
+            respond(['file' => Modrinth::for(server_or_404(), (string)input('kind'))->toggle((string)input('file'))]);
+
+        case 'mods.delete':
+            $isPost || respond(['error' => 'POST requerido'], 405);
+            Modrinth::for(server_or_404(), (string)input('kind'))->remove((string)input('file'));
+            respond(['ok' => true]);
+
+        // ---------------------------------------------------------- backups
+        case 'backups.list':
+            $server = server_or_404();
+            respond([
+                'backups' => Backup::list($server->id()),
+                'orphans' => Backup::orphans(),
+                'settings' => $server->cfg['backup'],
+                'usage' => Backup::usage(),
+                'running' => $server->isRunning(),
+                'job' => Job::active('backup-create', $server->id()) ?? Job::active('backup-restore', $server->id()),
+            ]);
+
+        case 'backups.create':
+            $isPost || respond(['error' => 'POST requerido'], 405);
+            $server = server_or_404();
+            if (Job::active('backup-create', $server->id()) || Job::active('backup-restore', $server->id())) {
+                throw new RuntimeException('Ya hay una copia o restauración en curso para este servidor.');
+            }
+            respond(['job' => Job::dispatch('backup-create', [$server->id(), (string)input('name', ''), false], 'Crear copia de seguridad')]);
+
+        case 'backups.restore':
+            $isPost || respond(['error' => 'POST requerido'], 405);
+            $server = server_or_404();
+            $from = (string)input('from', $server->id());
+            Backup::find($from, (string)input('backup'));
+            if ($server->isRunning()) {
+                throw new RuntimeException('Detén el servidor antes de restaurar.');
+            }
+            if (Job::active('backup-create', $server->id()) || Job::active('backup-restore', $server->id())) {
+                throw new RuntimeException('Ya hay una copia o restauración en curso para este servidor.');
+            }
+            respond(['job' => Job::dispatch('backup-restore', [
+                $server->id(), $from, (string)input('backup'), (bool)input('wipe', true), (bool)input('safety', true),
+            ], 'Restaurar copia de seguridad')]);
+
+        case 'backups.delete':
+            $isPost || respond(['error' => 'POST requerido'], 405);
+            $server = server_or_404();
+            Backup::delete((string)input('from', $server->id()), (string)input('backup'));
+            respond(['ok' => true]);
+
+        case 'backups.lock':
+            $isPost || respond(['error' => 'POST requerido'], 405);
+            $server = server_or_404();
+            Backup::setLocked((string)input('from', $server->id()), (string)input('backup'), (bool)input('locked'));
+            respond(['ok' => true]);
+
+        case 'backups.download':
+            $server = server_or_404();
+            Backup::download((string)input('from', $server->id()), (string)input('backup'));
+            exit;
+
+        case 'backups.settings':
+            $isPost || respond(['error' => 'POST requerido'], 405);
+            $server = server_or_404();
+            $server->update(['backup' => [
+                'interval' => (int)input('interval', 0),
+                'keep' => (int)input('keep', 7),
+                'ignore' => (string)input('ignore', ''),
+            ]]);
+            respond(['ok' => true, 'settings' => $server->cfg['backup']]);
 
         // ---------------------------------------------------------- playit
         case 'playit.status':

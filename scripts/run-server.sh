@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # Runs a Minecraft server with its stdin bound to a FIFO so the panel can send commands.
-# Usage: run-server.sh <run-dir> <server-dir> <startup command>
+# Usage: run-server.sh <run-dir> <server-dir> <startup command> [java-home]
 RUN="$1"
 DIR="$2"
 CMD="$3"
 LOG="$RUN/console.log"
+# Forge/NeoForge launchers start a second JVM by calling "java": make it the selected one.
+if [ -n "$4" ] && [ -x "$4/bin/java" ]; then
+    export JAVA_HOME="$4"
+    export PATH="$4/bin:$PATH"
+fi
 
 echo $$ > "$RUN/wrapper.pid"
 [ -p "$RUN/stdin" ] || { rm -f "$RUN/stdin"; mkfifo "$RUN/stdin"; }

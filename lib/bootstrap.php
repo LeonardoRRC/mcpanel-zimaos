@@ -32,6 +32,8 @@ define('JAVA_DIR', DATA_DIR . '/java');
 define('BIN_DIR', DATA_DIR . '/bin');
 define('JOBS_DIR', DATA_DIR . '/jobs');
 define('CACHE_DIR', DATA_DIR . '/cache');
+// Point BACKUP_DIR at another disk to keep backups even if the data disk fails.
+define('BACKUP_DIR', rtrim(getenv('BACKUP_DIR') ?: DATA_DIR . '/backups', '/'));
 
 foreach ([PANEL_DIR, PANEL_DIR . '/sessions', PANEL_DIR . '/servers', SERVERS_DIR, RUN_DIR, JAVA_DIR, BIN_DIR, JOBS_DIR, CACHE_DIR] as $d) {
     if (!is_dir($d)) {
@@ -78,16 +80,26 @@ function human_bytes(float $bytes, int $dec = 1): string
     return round($bytes, $i === 0 ? 0 : $dec) . ' ' . $units[$i];
 }
 
-/** HTTP GET returning the body, used for small JSON API calls. */
-function http_get(string $url, int $timeout = 20): string
+// Modrinth asks API clients to identify themselves with a contact.
+const HTTP_USER_AGENT = 'LeonardoRRC/mcpanel-zimaos/1.1 (github.com/LeonardoRRC/mcpanel-zimaos)';
+
+/** HTTP GET (or POST with a JSON body) returning the body, used for small JSON API calls. */
+function http_get(string $url, int $timeout = 20, ?array $postJson = null): string
 {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_TIMEOUT => $timeout,
-        CURLOPT_USERAGENT => 'mcpanel/1.0 (+self-hosted)',
+        CURLOPT_USERAGENT => HTTP_USER_AGENT,
     ]);
+    if ($postJson !== null) {
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($postJson, JSON_UNESCAPED_SLASHES),
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        ]);
+    }
     $body = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $err = curl_error($ch);
@@ -95,6 +107,15 @@ function http_get(string $url, int $timeout = 20): string
         throw new RuntimeException("Error al consultar $url (" . ($err ?: "HTTP $code") . ')');
     }
     return (string)$body;
+}
+
+function http_post_json(string $url, array $data)
+{
+    $decoded = json_decode(http_get($url, 30, $data), true);
+    if ($decoded === null) {
+        throw new RuntimeException("Respuesta inválida de $url");
+    }
+    return $decoded;
 }
 
 function http_json(string $url, int $cacheSeconds = 0)
@@ -105,7 +126,15 @@ function http_json(string $url, int $cacheSeconds = 0)
             return json_decode((string)file_get_contents($cache), true);
         }
     }
-    $body = http_get($url);
+    try {
+        $body = http_get($url);
+    } catch (RuntimeException $e) {
+        // Offline or API down: an expired copy is better than an empty version list.
+        if ($cacheSeconds > 0 && is_file($cache)) {
+            return json_decode((string)file_get_contents($cache), true);
+        }
+        throw $e;
+    }
     $data = json_decode($body, true);
     if ($data === null) {
         throw new RuntimeException("Respuesta inválida de $url");
@@ -131,7 +160,7 @@ function http_download(string $url, string $dest, ?callable $progress = null): v
         CURLOPT_FILE => $fp,
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_CONNECTTIMEOUT => 20,
-        CURLOPT_USERAGENT => 'mcpanel/1.0 (+self-hosted)',
+        CURLOPT_USERAGENT => HTTP_USER_AGENT,
         CURLOPT_FAILONERROR => true,
         CURLOPT_NOPROGRESS => $progress === null,
     ]);

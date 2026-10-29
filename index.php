@@ -51,6 +51,8 @@ $page = $server ? ($_GET['p'] ?? 'console') : ($_GET['p'] ?? 'servers');
 $serverPages = [
     'console' => ['Consola', 'fa-terminal'],
     'files' => ['Archivos', 'fa-folder'],
+    'plugins' => [($server ? Modrinth::navLabel($server) : null) ?? 'Plugins', 'fa-puzzle-piece'],
+    'backups' => ['Backups', 'fa-box-archive'],
     'startup' => ['Startup', 'fa-rocket'],
     'settings' => ['Ajustes', 'fa-gear'],
 ];

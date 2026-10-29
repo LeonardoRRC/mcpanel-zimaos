@@ -29,7 +29,9 @@ La imagen recomendada es `php:8.5-cli`, la rama estable más nueva y con soporte
 | **playit.gg** | Interruptor para exponer el servidor a internet. La primera vez muestra un enlace de vinculación y detecta solo cuando lo apruebas. Luego muestra la dirección pública con botón para copiarla. |
 | **Archivos** | Navegar, editar con resaltado de sintaxis (Ace, Ctrl+S guarda) y subir archivos o carpetas enteras arrastrándolos. Desde el menú ⋯ o con clic derecho: renombrar, mover y copiar (con selector de carpetas), descargar (las carpetas como `.tar.gz`), comprimir en `.zip` o `.tar.gz`, descomprimir "aquí" o "en carpeta", y borrar. También permite selección múltiple y atajos de teclado (Supr, F2, Esc). |
 | **Startup** | Comando de inicio editable con variables, Java 8/11/17/21/25 (Eclipse Temurin, se instalan con un clic), RAM, flags de Aikar, archivo jar, aceptación del EULA, reinicio automático e inicio al arrancar el sistema. |
-| **Software** | Instala o cambia la versión de Paper, Purpur, Vanilla o Fabric. Elige solo la versión de Java que necesita cada versión de Minecraft. |
+| **Plugins y mods** | Buscador de [Modrinth](https://modrinth.com) filtrado por el software y la versión del servidor: plugins para Paper, Purpur, Spigot, Folia, Velocity…; mods para Fabric, Quilt, Forge y NeoForge (los híbridos como Mohist muestran ambos). Instala la versión que elijas con sus dependencias requeridas. La pestaña *Instalados* reconoce los jars por su hash, avisa de actualizaciones (una a una o todas), y permite activarlos, desactivarlos o borrarlos. |
+| **Software** | Más de 25 tipos de servidor desde [MCJars](https://mcjars.app): Paper, Purpur, Folia, Spigot, Vanilla, Fabric, Quilt, Forge, NeoForge, Velocity, BungeeCord, Mohist, Arclight y más, con todas sus versiones (snapshots opcionales) y builds. Elige solo la versión de Java que necesita cada versión de Minecraft. |
+| **Backups** | Copias `.tar.gz` guardadas fuera de la carpeta del servidor: sobreviven aunque se borren sus archivos o el servidor entero (las de servidores eliminados se pueden restaurar en otro). Se pueden hacer en caliente: el panel guarda el mundo y pausa el autoguardado mientras copia. Restaurar puede borrar antes lo actual y hacer una copia de seguridad del estado actual. También permite bloquear copias, descargarlas, programar copias automáticas (cada 6 h a cada semana, conservando las últimas N) y excluir rutas como `logs` o `*.log`. |
 | **Varios servidores** | Cada uno tiene su puerto, su carpeta y su propio túnel de playit. |
 
 ## Capturas
@@ -73,6 +75,7 @@ docker run -d --name mcpanel --network host --init --restart unless-stopped \
 | --- | --- | --- |
 | `PANEL_PORT` | `8090` | Puerto de la interfaz web |
 | `DATA_DIR` | `/data` | Dónde se guardan servidores, Java y configuración |
+| `BACKUP_DIR` | `$DATA_DIR/backups` | Dónde se guardan las copias de seguridad. Apúntalo a otro disco para protegerte también de un fallo del disco principal |
 | `PANEL_NAME` | `MC Panel` | Nombre que se muestra en la barra lateral y el login |
 | `PUBLIC_HOST` | host con el que abres el panel | Dirección que se muestra para conectarse en la red local |
 | `PHP_CLI_SERVER_WORKERS` | `8` | Procesos PHP que atienden peticiones en paralelo |
@@ -93,7 +96,9 @@ navegador ──HTTP──▶ php -S (router.php)
 
 - **Procesos sin `screen` ni `tmux`.** Cada servidor corre en `run-server.sh`, que conecta el stdin de Java a un FIFO (`run/<id>/stdin`). El panel envía comandos escribiendo en ese FIFO y lee la consola de `console.log`. Ese script también se encarga del reinicio automático si el servidor se cae.
 - **Estadísticas:** CPU y RAM se leen de `/proc/<pid>` y el disco con `du`. Las gráficas se dibujan en un `<canvas>`, sin librerías.
-- **Descargas:** Java viene de la API de Adoptium; los jars, de Mojang, PaperMC (Fill v3), Purpur y Fabric Meta. Corren como trabajos en segundo plano (`cli/job.php`) y la interfaz muestra su progreso.
+- **Descargas:** Java viene de la API de Adoptium. Los servidores salen de la API de MCJars (`/api/v2/types` y `/api/v2/builds`): cada build trae sus pasos de instalación (descargar, descomprimir, borrar), y el panel los ejecuta en la carpeta del servidor. Así se instalan también Forge y NeoForge (`server.jar` lanzador + `libraries/`). Corren como trabajos en segundo plano (`cli/job.php`) y la interfaz muestra su progreso.
+- **Java:** el servidor arranca con `JAVA_HOME` y `PATH` apuntando al Java elegido, porque los lanzadores de Forge y NeoForge abren una segunda JVM llamando a `java`.
+- **Modrinth:** búsqueda con facetas (loader, versión de Minecraft y, para mods, que funcionen en el servidor). La versión elegida se descarga y se comprueba su SHA-1, y las dependencias requeridas se resuelven en cola. Los archivos instalados se identifican con `POST /v2/version_files` (por hash) y las actualizaciones con `/v2/version_files/update`. Los hashes se guardan en caché para no recalcularlos.
 - **playit.gg (agente ≥ 1.1):**
   1. `playit-cli claim generate` → `claim url`: el panel te muestra el enlace.
   2. `playit-cli claim exchange` espera a que apruebes la vinculación y devuelve la clave del agente.
@@ -111,15 +116,16 @@ navegador ──HTTP──▶ php -S (router.php)
 | `panel/` | Usuarios (contraseñas con hash bcrypt), configuración de cada servidor y claves de playit |
 | `run/<id>/` | Log de consola, PIDs, FIFO y estado del agente playit |
 | `jobs/` | Estado de las descargas en curso (se limpia a las 24 h) |
+| `backups/<id>/` | Copias de seguridad (`.tar.gz` + `.json` con nombre, fecha y bloqueo). Se conservan al borrar el servidor |
 
 ### Estructura del código
 
 ```
 api.php, index.php, router.php   entrada HTTP
-lib/        Auth, Server (procesos y estadísticas), Files, Java, Software, Playit, Job
+lib/        Auth, Server (procesos y estadísticas), Files, Java, Software (MCJars), Modrinth, Backup, Playit, Job
 views/      plantillas PHP (layout, páginas)
-assets/     CSS y JS sin framework (consola, archivos, startup, servidores)
-cli/        job.php (descargas), boot.php (arranque)
+assets/     CSS y JS sin framework (consola, archivos, plugins, startup, servidores)
+cli/        job.php (descargas, copias), boot.php (arranque), scheduler.php (copias automáticas)
 scripts/    run-server.sh, run-playit.sh
 start.sh    punto de entrada del contenedor
 ```

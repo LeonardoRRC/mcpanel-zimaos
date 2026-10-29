@@ -13,6 +13,8 @@ fi
 php -r 'require "lib/bootstrap.php"; if ($w = php_security_warning()) fwrite(STDERR, "AVISO: $w\n");'
 
 php cli/boot.php
+# Automatic backups: checks every minute which servers are due.
+php cli/scheduler.php >>"$DATA_DIR/scheduler.log" 2>&1 &
 
 echo "MC Panel escuchando en http://0.0.0.0:$PORT (PHP $(php -r 'echo PHP_VERSION;'))"
 # session.upload_progress is unused by the panel and is the attack surface of CVE-2026-109618/109619.
