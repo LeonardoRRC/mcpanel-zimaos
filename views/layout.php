@@ -8,6 +8,7 @@ $link = fn(string $p) => $server ? '?s=' . $server->id() . '&p=' . $p : '?p=' . 
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($title) ?> · <?= e(APP_NAME) ?></title>
+<?php require __DIR__ . '/icons.php'; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">

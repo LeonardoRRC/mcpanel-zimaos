@@ -1,8 +1,2 @@
-<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <path d="M32 4 58 18v28L32 60 6 46V18z" fill="#3a1606"/>
-    <path d="M32 8 54 20 32 32 10 20z" fill="#ff7a2e"/>
-    <path d="M10 20 32 32v24L10 44z" fill="#f85102"/>
-    <path d="M54 20 32 32v24l22-12z" fill="#c73e00"/>
-    <path d="M20 25.5 26 29v6l-6-3.5zM38 35l6-3.5v6L38 41z" fill="#fff" opacity=".9"/>
-    <path d="M27 14l5-2.8 5 2.8-5 2.8z" fill="#ffd2b8"/>
-</svg>
+<?php // Small cut of the MC Panel symbol (docs/brand/mcpanel-symbol-small.svg) for sizes <= 40 px. ?>
+<svg class="logo" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#FF7A2E" fill-rule="evenodd" d="M128.00 33.70 L202.00 76.43 L128.00 119.15 L54.00 76.43 Z"/><path fill="#F85102" d="M43.00 95.48 L117.00 138.20 L117.00 223.65 L43.00 180.93 Z"/><path fill="#B83B00" d="M139.00 138.20 L213.00 95.48 L213.00 180.93 L139.00 223.65 Z"/></svg>

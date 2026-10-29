@@ -5,6 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e(APP_NAME) ?> · <?= $mode === 'setup' ? 'Configuración' : 'Iniciar sesión' ?></title>
+<?php require __DIR__ . '/icons.php'; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= asset('css/app.css') ?>">
@@ -12,7 +13,7 @@
 <body>
 <div class="auth-page">
     <div class="auth-card">
-        <?php require __DIR__ . '/logo.php'; ?>
+        <?php require __DIR__ . '/logo-full.php'; ?>
         <h1><?= $mode === 'setup' ? 'Crear administrador' : e(APP_NAME) . ' Login' ?></h1>
         <?php if ($error): ?><div class="form-error"><?= e($error) ?></div><?php endif; ?>
         <form method="post" autocomplete="on">

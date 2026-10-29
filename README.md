@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/mcpanel-horizontal-dark.svg">
+    <img src="docs/brand/mcpanel-horizontal.svg" width="420" alt="MC Panel">
+  </picture>
+</p>
+
 # MC Panel para ZimaOS
 
 Panel web en PHP para administrar servidores de Minecraft en casa. Está pensado para [ZimaOS](https://www.zimaspace.com/) y CasaOS, pero funciona en cualquier máquina con Docker. Tiene consola en vivo, gestor de archivos, editor de arranque (Startup) con varias versiones de Java, y túneles de [playit.gg](https://playit.gg) para jugar desde internet sin abrir puertos. El diseño está inspirado en el panel de Bloom.host.
@@ -132,6 +139,10 @@ Necesitas Linux o WSL con PHP 8.3+ (con los parches de octubre de 2026) y las ex
 ```bash
 DATA_DIR=$PWD/.data PANEL_PORT=8090 bash start.sh
 ```
+
+## Logo
+
+El logo es **Bloque consola**: un cubo con el prompt `>_` en su cara superior. En [`docs/brand/`](docs/brand/) están todas sus versiones: color, un solo color, lockups e iconos.
 
 ## Licencia
 

@@ -1,6 +1,9 @@
 <?php
 // Router for PHP's built-in server: php -S 0.0.0.0:8090 router.php
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/';
+if ($path === '/favicon.ico') {
+    $path = '/assets/brand/favicon.ico';
+}
 
 if (preg_match('#^/assets/[\w./-]+$#', $path) && !str_contains($path, '..')) {
     $file = __DIR__ . $path;

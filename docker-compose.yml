@@ -37,7 +37,7 @@ x-casaos:
   description:
     en_us: Minecraft server panel with console, file manager, startup editor and playit.gg tunnels.
   developer: self
-  icon: https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Minecraft/icon.png
+  icon: https://cdn.jsdelivr.net/gh/LeonardoRRC/mcpanel-zimaos@main/docs/brand/png/mcpanel-app-icon-512.png
   index: /
   port_map: "8090"
   scheme: http
