@@ -1,0 +1,46 @@
+# MC Panel for ZimaOS. Upload mcpanel.tar.gz to /DATA/AppData/mcpanel/, then import this file in
+# App Store > "Instalación personalizada". On first start the panel is unpacked into app/.
+# To update: replace mcpanel.tar.gz, delete the app/ folder and restart the app.
+name: mcpanel
+services:
+  mcpanel:
+    image: php:8.3-cli
+    container_name: mcpanel
+    # Host networking: the panel and every Minecraft port are reachable directly on the ZimaOS IP.
+    network_mode: host
+    init: true
+    restart: unless-stopped
+    working_dir: /srv/mcpanel
+    command:
+      - bash
+      - -c
+      - >-
+        cd /srv/mcpanel && if [ ! -f app/start.sh ]; then mkdir -p app &&
+        tar -xzf mcpanel.tar.gz -C app --strip-components=1; fi; exec bash app/start.sh
+    environment:
+      DATA_DIR: /srv/mcpanel/data
+      PANEL_PORT: "8090"
+      PANEL_NAME: MC Panel
+      PHP_CLI_SERVER_WORKERS: "8"
+      TZ: America/Lima
+    volumes:
+      - type: bind
+        source: /DATA/AppData/mcpanel
+        target: /srv/mcpanel
+x-casaos:
+  main: mcpanel
+  architectures:
+    - amd64
+    - arm64
+  author: self
+  category: Gaming
+  description:
+    en_us: Minecraft server panel with console, file manager, startup editor and playit.gg tunnels.
+  developer: self
+  icon: https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Minecraft/icon.png
+  index: /
+  port_map: "8090"
+  scheme: http
+  title:
+    custom: MC Panel
+    en_us: MC Panel

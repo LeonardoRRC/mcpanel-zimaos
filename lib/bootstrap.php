@@ -1,0 +1,177 @@
+<?php
+declare(strict_types=1);
+
+define('APP_ROOT', dirname(__DIR__));
+define('APP_NAME', getenv('PANEL_NAME') ?: 'MC Panel');
+define('DATA_DIR', rtrim(getenv('DATA_DIR') ?: '/data', '/'));
+define('PANEL_DIR', DATA_DIR . '/panel');
+define('SERVERS_DIR', DATA_DIR . '/servers');
+define('RUN_DIR', DATA_DIR . '/run');
+define('JAVA_DIR', DATA_DIR . '/java');
+define('BIN_DIR', DATA_DIR . '/bin');
+define('JOBS_DIR', DATA_DIR . '/jobs');
+define('CACHE_DIR', DATA_DIR . '/cache');
+
+foreach ([PANEL_DIR, PANEL_DIR . '/sessions', PANEL_DIR . '/servers', SERVERS_DIR, RUN_DIR, JAVA_DIR, BIN_DIR, JOBS_DIR, CACHE_DIR] as $d) {
+    if (!is_dir($d)) {
+        @mkdir($d, 0775, true);
+    }
+}
+
+spl_autoload_register(function (string $class): void {
+    $file = __DIR__ . '/' . $class . '.php';
+    if (is_file($file)) {
+        require $file;
+    }
+});
+
+function read_json(string $path, $default = null)
+{
+    if (!is_file($path)) {
+        return $default;
+    }
+    $data = json_decode((string)file_get_contents($path), true);
+    return $data ?? $default;
+}
+
+function write_json(string $path, $data): void
+{
+    $tmp = $path . '.tmp' . getmypid();
+    file_put_contents($tmp, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    rename($tmp, $path);
+}
+
+function e(?string $s): string
+{
+    return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+}
+
+function human_bytes(float $bytes, int $dec = 1): string
+{
+    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    $i = 0;
+    while ($bytes >= 1024 && $i < count($units) - 1) {
+        $bytes /= 1024;
+        $i++;
+    }
+    return round($bytes, $i === 0 ? 0 : $dec) . ' ' . $units[$i];
+}
+
+/** HTTP GET returning the body, used for small JSON API calls. */
+function http_get(string $url, int $timeout = 20): string
+{
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT => $timeout,
+        CURLOPT_USERAGENT => 'mcpanel/1.0 (+self-hosted)',
+    ]);
+    $body = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($body === false || $code >= 400) {
+        throw new RuntimeException("Error al consultar $url (" . ($err ?: "HTTP $code") . ')');
+    }
+    return (string)$body;
+}
+
+function http_json(string $url, int $cacheSeconds = 0)
+{
+    if ($cacheSeconds > 0) {
+        $cache = CACHE_DIR . '/' . sha1($url) . '.json';
+        if (is_file($cache) && time() - filemtime($cache) < $cacheSeconds) {
+            return json_decode((string)file_get_contents($cache), true);
+        }
+    }
+    $body = http_get($url);
+    $data = json_decode($body, true);
+    if ($data === null) {
+        throw new RuntimeException("Respuesta inválida de $url");
+    }
+    if ($cacheSeconds > 0) {
+        file_put_contents($cache, $body);
+    }
+    return $data;
+}
+
+/**
+ * Download a file to disk. $progress receives (downloaded, total) and is throttled by the caller.
+ */
+function http_download(string $url, string $dest, ?callable $progress = null): void
+{
+    $tmp = $dest . '.part';
+    $fp = fopen($tmp, 'wb');
+    if (!$fp) {
+        throw new RuntimeException("No se puede escribir $tmp");
+    }
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_FILE => $fp,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_CONNECTTIMEOUT => 20,
+        CURLOPT_USERAGENT => 'mcpanel/1.0 (+self-hosted)',
+        CURLOPT_FAILONERROR => true,
+        CURLOPT_NOPROGRESS => $progress === null,
+    ]);
+    if ($progress) {
+        curl_setopt($ch, CURLOPT_PROGRESSFUNCTION, function ($ch, $dlTotal, $dlNow) use ($progress) {
+            $progress((int)$dlNow, (int)$dlTotal);
+            return 0;
+        });
+    }
+    $ok = curl_exec($ch);
+    $err = curl_error($ch);
+    curl_close($ch);
+    fclose($fp);
+    if (!$ok) {
+        @unlink($tmp);
+        throw new RuntimeException("Descarga fallida: $err");
+    }
+    rename($tmp, $dest);
+}
+
+/** Launch a command fully detached from the web request. */
+function spawn_detached(array $argv, string $log = '/dev/null'): void
+{
+    $cmd = 'setsid ' . implode(' ', array_map('escapeshellarg', $argv))
+        . ' >>' . escapeshellarg($log) . ' 2>&1 </dev/null &';
+    exec($cmd);
+}
+
+function pid_alive(?int $pid): bool
+{
+    if (!$pid || $pid < 2) {
+        return false;
+    }
+    $stat = @file_get_contents("/proc/$pid/stat");
+    if ($stat === false) {
+        return false;
+    }
+    // Field 3 is the state; a zombie (Z) or dead (X) process is not running.
+    $state = substr($stat, strrpos($stat, ')') + 2, 1);
+    return $state !== 'Z' && $state !== 'X';
+}
+
+function read_pid(string $file): ?int
+{
+    $pid = (int)trim((string)@file_get_contents($file));
+    return $pid > 0 ? $pid : null;
+}
+
+function system_arch(): string
+{
+    $m = php_uname('m');
+    return match (true) {
+        in_array($m, ['aarch64', 'arm64'], true) => 'aarch64',
+        str_starts_with($m, 'arm') => 'arm',
+        default => 'x64',
+    };
+}
+
+/** Asset URL with a version so browsers fetch the new file after an update. */
+function asset(string $path): string
+{
+    return 'assets/' . $path . '?v=' . (@filemtime(APP_ROOT . '/assets/' . $path) ?: 0);
+}

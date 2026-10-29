@@ -1,0 +1,5 @@
+# Runtime data (servers, Java, secrets) never belongs in the repo.
+.data/
+data/
+*.tar.gz
+.DS_Store
