@@ -10,11 +10,14 @@ type Installed = { file: string; enabled: boolean; size: number; title?: string;
 type Version = { id: string; number: string; name: string; type: string; date: string; file?: { size: number }; deps?: number };
 
 const compact = new Intl.NumberFormat('es', { notation: 'compact', maximumFractionDigits: 1 });
+/** Icon (card placeholder / switch button) and noun for each kind. */
+const KIND_ICON: Record<string, [string, string]> = { plugins: ['fa-plug', 'fa-plug'], mods: ['fa-cube', 'fa-cubes'], datapacks: ['fa-scroll', 'fa-scroll'] };
+const KIND_NOUN: Record<string, string> = { plugins: 'plugin', mods: 'mod', datapacks: 'datapack' };
 
 function Icon({ url, kind, sm }: { url?: string; kind: string; sm?: boolean }) {
     const cls = `mr-icon${sm ? ' sm' : ''}`;
     return url ? <img className={cls} src={url} alt="" loading="lazy" referrerPolicy="no-referrer" />
-        : <span className={`${cls} placeholder`}><i className={`fa-solid ${kind === 'mods' ? 'fa-cube' : 'fa-plug'}`} /></span>;
+        : <span className={`${cls} placeholder`}><i className={`fa-solid ${(KIND_ICON[kind] ?? KIND_ICON.plugins)[0]}`} /></span>;
 }
 
 export function PluginsPage({ server, meta }: { server: Server; meta: Meta; reload: () => Promise<unknown> }) {
@@ -25,7 +28,7 @@ export function PluginsPage({ server, meta }: { server: Server; meta: Meta; relo
             <div className="page-head"><h1>Plugins y mods</h1></div>
             <div className="card"><div className="empty">
                 <i className="fa-solid fa-puzzle-piece" />
-                <b style={{ color: 'var(--white)' }}>{server.label || 'Este servidor'}</b> no carga plugins ni mods.<br />
+                <b style={{ color: 'var(--white)' }}>{server.label || 'Este servidor'}</b> no carga plugins, mods ni datapacks.<br />
                 Cambia a Paper o Purpur (plugins) o a Fabric, Forge o NeoForge (mods) en <a {...linkProps(`/s/${encodeURIComponent(server.id)}/startup`)}>Startup</a>.
             </div></div>
         </>;
@@ -43,7 +46,7 @@ function Mods({ server, meta, kinds }: { server: Server; meta: Meta; kinds: Reco
     });
     const setKind = (k: string) => { setKindState(k); try { localStorage.setItem(storeKey, k); } catch { /* storage off */ } };
     const info = kinds[kind];
-    const noun = kind === 'mods' ? 'mod' : 'plugin';
+    const noun = KIND_NOUN[kind] ?? 'plugin';
     const projectUrl = (slug: string) => `https://modrinth.com/${info.project_type}/${encodeURIComponent(slug)}`;
     const [tab, setTab] = useState<'browse' | 'installed'>('browse');
 
@@ -116,7 +119,7 @@ function Mods({ server, meta, kinds }: { server: Server; meta: Meta; kinds: Reco
                 <div className="actions seg">
                     {Object.entries(kinds).map(([k, v]) => (
                         <button key={k} type="button" className={`btn${k === kind ? ' btn-primary' : ''}`} onClick={() => setKind(k)}>
-                            <i className={`fa-solid ${k === 'mods' ? 'fa-cubes' : 'fa-plug'}`} /> {v.label}</button>
+                            <i className={`fa-solid ${(KIND_ICON[k] ?? KIND_ICON.plugins)[1]}`} /> {v.label}</button>
                     ))}
                 </div>
             )}
@@ -200,7 +203,9 @@ function Mods({ server, meta, kinds }: { server: Server; meta: Meta; kinds: Reco
                     </tbody>
                 </table>
             </div>
-            <p className="hint">Los cambios se aplican al reiniciar el servidor. Los archivos que no están en Modrinth aparecen con su nombre de archivo.</p>
+            <p className="hint">{kind === 'datapacks'
+                ? <>Los datapacks se cargan al reiniciar el servidor o con <code className="mono">/reload</code>. Los que cambian la generación del mundo (como Terralith) solo afectan a zonas que aún no se han explorado.</>
+                : 'Los cambios se aplican al reiniciar el servidor.'} Los archivos que no están en Modrinth aparecen con su nombre de archivo.</p>
         </section>}
     </>;
 }

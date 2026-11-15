@@ -1,4 +1,4 @@
-export type Kind = { label: string; dir: string; loaders: string[]; project_type: string };
+export type Kind = { label: string; dir: string; loaders: string[]; project_type: string; ext: string };
 export type Server = {
     id: string; name: string; description: string; port: number; ram_min: number; ram_max: number; java: number;
     jar: string; startup: string; flags_preset: string; custom_flags: string;

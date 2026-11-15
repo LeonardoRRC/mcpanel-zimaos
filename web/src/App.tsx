@@ -17,7 +17,7 @@ import { SettingsPage } from './pages/Settings';
 const SERVER_PAGES: [string, string, string][] = [
     ['console', 'Consola', 'fa-terminal'],
     ['files', 'Archivos', 'fa-folder'],
-    ['plugins', 'Plugins', 'fa-puzzle-piece'],
+    ['plugins', 'Plugins', 'fa-puzzle-piece'], // label comes from the server: "Plugins y Datapacks"...
     ['backups', 'Backups', 'fa-box-archive'],
     ['startup', 'Startup', 'fa-rocket'],
     ['settings', 'Ajustes', 'fa-gear'],
@@ -97,7 +97,8 @@ function Shell({ session, onLogout }: { session: Session; onLogout: () => void }
 
     useEffect(() => {
         if (m && servers && !server) navigate('/', true); // deleted or unknown server
-        const label = server ? `${server.name} | ${SERVER_PAGES.find(([k]) => k === page)?.[1]}` : ACCOUNT_PAGES.find(([k]) => k === page)?.[1];
+        const pageLabel = page === 'plugins' ? server?.nav_label ?? 'Plugins' : SERVER_PAGES.find(([k]) => k === page)?.[1];
+        const label = server ? `${server.name} | ${pageLabel}` : ACCOUNT_PAGES.find(([k]) => k === page)?.[1];
         document.title = `${label} · ${session.name}`;
     }); // eslint-disable-line react-hooks/exhaustive-deps
 

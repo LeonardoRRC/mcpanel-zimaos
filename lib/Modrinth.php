@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/** Plugin and mod browser/installer backed by the Modrinth API (api.modrinth.com). */
+/** Plugin, mod and datapack browser/installer backed by the Modrinth API (api.modrinth.com). */
 final class Modrinth
 {
     private const API = 'https://api.modrinth.com/v2';
@@ -30,8 +30,9 @@ final class Modrinth
     }
 
     /**
-     * What this server can load: ['plugins' => [...], 'mods' => [...]] (hybrids like Mohist get both).
-     * Each entry: label, dir (folder inside the server), loaders, project_type.
+     * What this server can load: ['plugins' => [...], 'mods' => [...], 'datapacks' => [...]].
+     * Hybrids like Mohist get plugins and mods; every real Minecraft server from 1.13 on takes datapacks.
+     * Each entry: label, dir (folder inside the server), loaders, project_type, ext (file extension).
      */
     public static function kinds(Server $server): array
     {
@@ -43,26 +44,58 @@ final class Modrinth
         $loaders = array_values(array_unique($loaders));
         $kinds = [];
         if ($l = array_values(array_intersect($loaders, self::PLUGIN_LOADERS))) {
-            $kinds['plugins'] = ['label' => 'Plugins', 'dir' => 'plugins', 'loaders' => $l, 'project_type' => 'plugin'];
+            $kinds['plugins'] = ['label' => 'Plugins', 'dir' => 'plugins', 'loaders' => $l, 'project_type' => 'plugin', 'ext' => 'jar'];
         }
         if ($l = array_values(array_intersect($loaders, self::MOD_LOADERS))) {
-            $kinds['mods'] = ['label' => 'Mods', 'dir' => 'mods', 'loaders' => $l, 'project_type' => 'mod'];
+            $kinds['mods'] = ['label' => 'Mods', 'dir' => 'mods', 'loaders' => $l, 'project_type' => 'mod', 'ext' => 'jar'];
+        }
+        if (self::takesDatapacks($server, $type)) {
+            $kinds['datapacks'] = [
+                'label' => 'Datapacks', 'dir' => self::worldName($server) . '/datapacks',
+                'loaders' => ['datapack'], 'project_type' => 'datapack', 'ext' => 'zip',
+            ];
         }
         return $kinds;
     }
 
-    /** Sidebar label for the page, null when the server type takes neither. */
+    /** Datapacks exist since Minecraft 1.13 and need a real game server (not a proxy or a limbo). */
+    private static function takesDatapacks(Server $server, ?array $type): bool
+    {
+        if (!$type || Software::isProxy($type['id']) || $type['group'] === 'limbos') {
+            return false;
+        }
+        $v = (string)($server->cfg['software']['version'] ?? '');
+        if (!preg_match('/^(\d+)\.(\d+)/', $v, $m)) {
+            return $v !== ''; // snapshots like "24w14a" are all newer than 1.13
+        }
+        return (int)$m[1] > 1 || (int)$m[2] >= 13; // 1.13+ and the new 26.x numbering
+    }
+
+    /** The world folder (level-name in server.properties, "world" by default). */
+    private static function worldName(Server $server): string
+    {
+        $props = @file_get_contents($server->dir() . '/server.properties') ?: '';
+        $name = preg_match('/^level-name=(.*)$/m', $props, $m) ? trim(stripcslashes($m[1])) : '';
+        // Only a plain folder name: never let it point outside the server.
+        return $name !== '' && strpbrk($name, '/\\') === false && $name[0] !== '.' ? $name : 'world';
+    }
+
+    /** Sidebar label for the page ("Plugins y Datapacks"), null when the server takes none. */
     public static function navLabel(Server $server): ?string
     {
         $labels = array_column(self::kinds($server), 'label');
-        return $labels ? implode(' y ', $labels) : null;
+        if (!$labels) {
+            return null;
+        }
+        $last = array_pop($labels);
+        return $labels ? implode(', ', $labels) . ' y ' . $last : $last;
     }
 
     public static function for(Server $server, string $kind): self
     {
         $kinds = self::kinds($server);
         if (!isset($kinds[$kind])) {
-            throw new RuntimeException('Este tipo de servidor no admite ' . ($kind === 'mods' ? 'mods.' : 'plugins.'));
+            throw new RuntimeException('Este tipo de servidor no admite ' . (['mods' => 'mods.', 'datapacks' => 'datapacks.'][$kind] ?? 'plugins.'));
         }
         return new self($server, $kind, $kinds[$kind]);
     }
@@ -215,7 +248,9 @@ final class Modrinth
                 }
             }
         }
-        $job->log('Listo. Reinicia el servidor para cargar los cambios.');
+        $job->log($this->kind === 'datapacks'
+            ? 'Listo. Reinicia el servidor o usa /reload para cargar los datapacks (los que generan mundo solo afectan a zonas nuevas).'
+            : 'Listo. Reinicia el servidor para cargar los cambios.');
     }
 
     // ------------------------------------------------------------ installed
@@ -230,7 +265,8 @@ final class Modrinth
         $cacheFile = CACHE_DIR . '/modrinth-' . $this->server->id() . "-{$this->kind}.json";
         $cache = read_json($cacheFile, []);
         $files = [];
-        foreach (glob("$dir/*.{jar,jar.disabled}", GLOB_BRACE) ?: [] as $path) {
+        $ext = $this->info['ext'];
+        foreach (glob("$dir/*.{{$ext},{$ext}.disabled}", GLOB_BRACE) ?: [] as $path) {
             $name = basename($path);
             $key = $name . '|' . filesize($path) . '|' . filemtime($path);
             $files[$name] = $cache[$key] ?? ['key' => $key, 'sha1' => sha1_file($path), 'checked' => 0];
@@ -336,7 +372,7 @@ final class Modrinth
     {
         $name = self::safeFileName($name);
         $path = $this->dir() . '/' . $name;
-        if (!preg_match('/\.jar(\.disabled)?$/', $name) || !is_file($path)) {
+        if (!preg_match('/\.' . preg_quote($this->info['ext'], '/') . '(\.disabled)?$/', $name) || !is_file($path)) {
             throw new RuntimeException('Archivo no encontrado.');
         }
         return $path;
