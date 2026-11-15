@@ -3,3 +3,6 @@
 data/
 *.tar.gz
 .DS_Store
+
+# Web UI: dependencies are installed to build; the built app (dist/) is committed so the panel runs without Node.
+web/node_modules/

@@ -1,2 +1,0 @@
-<?php // Small cut of the MC Panel symbol (docs/brand/mcpanel-symbol-small.svg) for sizes <= 40 px. ?>
-<svg class="logo" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#FF7A2E" fill-rule="evenodd" d="M128.00 33.70 L202.00 76.43 L128.00 119.15 L54.00 76.43 Z"/><path fill="#F85102" d="M43.00 95.48 L117.00 138.20 L117.00 223.65 L43.00 180.93 Z"/><path fill="#B83B00" d="M139.00 138.20 L213.00 95.48 L213.00 180.93 L139.00 223.65 Z"/></svg>

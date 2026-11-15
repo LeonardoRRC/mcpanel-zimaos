@@ -7,9 +7,9 @@
 
 # MC Panel para ZimaOS
 
-Panel web en PHP para administrar servidores de Minecraft en casa. Está pensado para [ZimaOS](https://www.zimaspace.com/) y CasaOS, pero funciona en cualquier máquina con Docker. Tiene consola en vivo, gestor de archivos, editor de arranque (Startup) con varias versiones de Java, y túneles de [playit.gg](https://playit.gg) para jugar desde internet sin abrir puertos. El diseño está inspirado en el panel de Bloom.host.
+Panel web para administrar servidores de Minecraft en casa. Está pensado para [ZimaOS](https://www.zimaspace.com/) y CasaOS, pero funciona en cualquier máquina con Docker. Tiene consola en vivo, gestor de archivos, editor de arranque (Startup) con varias versiones de Java, y túneles de [playit.gg](https://playit.gg) para jugar desde internet sin abrir puertos. El diseño está inspirado en el panel de Bloom.host.
 
-No usa base de datos ni hay que compilar nada: corre sobre la imagen oficial `php:8.5-cli`, y Java, los servidores y playit se descargan desde el propio panel.
+La interfaz es una app de **React** (TypeScript + Vite) y el servidor es PHP sin base de datos. Se distribuye como imagen de Docker lista para usar (`ghcr.io/leonardorrc/mcpanel`, sobre la oficial `php:8.5-cli`), y Java, los servidores y playit se descargan desde el propio panel.
 
 ## Requisitos
 
@@ -50,28 +50,34 @@ La imagen recomendada es `php:8.5-cli`, la rama estable más nueva y con soporte
 
 ## Instalación en ZimaOS / CasaOS
 
-1. Descarga este repositorio como `.tar.gz` y renómbralo a `mcpanel.tar.gz`:
-   ```bash
-   git clone https://github.com/LeonardoRRC/mcpanel-zimaos.git mcpanel
-   tar -czf mcpanel.tar.gz mcpanel
-   ```
-2. Con la app **Files** de ZimaOS, crea la carpeta `/DATA/AppData/mcpanel/` y sube ahí `mcpanel.tar.gz`.
-3. Ve a **Tienda de Aplicaciones** → **Instalar aplicación personalizada** → **Importar** → **Docker Compose** y elige [`docker-compose.yml`](docker-compose.yml). Luego pulsa **Instalar**.
-4. Abre `http://IP-DE-TU-ZIMAOS:8090`. La primera vez te pide crear el usuario administrador.
+1. Ve a **Tienda de Aplicaciones** → **Instalar aplicación personalizada** → **Importar** → **Docker Compose** y elige [`docker-compose.yml`](docker-compose.yml). Luego pulsa **Instalar**.
+2. Abre `http://IP-DE-TU-ZIMAOS:8090`. La primera vez te pide crear el usuario administrador.
 
-Al arrancar por primera vez, el contenedor descomprime el panel en `app/`.
+No hay que subir nada: ZimaOS descarga la imagen `ghcr.io/leonardorrc/mcpanel` y tus datos se guardan en `/DATA/AppData/mcpanel/data`.
 
-**Para actualizar:** reemplaza `mcpanel.tar.gz`, borra la carpeta `app/` y reinicia la app. También puedes descomprimir encima con `tar -xzf mcpanel.tar.gz -C app --strip-components=1`. Tus servidores y tu configuración no se tocan.
+**Para actualizar:** pulsa **Actualizar** en la app de ZimaOS (descarga la imagen nueva). Tus servidores y tu configuración no se tocan.
+
+**Si lo instalaste con la versión anterior** (la que subía `mcpanel.tar.gz`): borra la app en ZimaOS **sin borrar sus datos** e instala el nuevo `docker-compose.yml`. Usa la misma carpeta `/DATA/AppData/mcpanel/data`, así que tus servidores, copias y la vinculación de playit siguen ahí. La carpeta `app/` y `mcpanel.tar.gz` ya no se usan y puedes borrarlos.
 
 ### Con Docker en cualquier Linux
 
 ```bash
-git clone https://github.com/LeonardoRRC/mcpanel-zimaos.git /opt/mcpanel/app
 docker run -d --name mcpanel --network host --init --restart unless-stopped \
-  -e DATA_DIR=/data -e PANEL_PORT=8090 \
-  -v /opt/mcpanel/app:/app -v /opt/mcpanel/data:/data -w /app \
-  php:8.5-cli bash /app/start.sh
+  -e PANEL_PORT=8090 -v /opt/mcpanel/data:/data \
+  ghcr.io/leonardorrc/mcpanel:latest
 ```
+
+Funciona igual con Podman (`podman run …` con los mismos parámetros).
+
+### Etiquetas de la imagen
+
+| Etiqueta | Qué es |
+| --- | --- |
+| `latest` | La última versión de la rama `main` |
+| `2.0.0`, `2.0` | Versiones publicadas con una etiqueta de git `v2.0.0` |
+| `sha-abc1234` | Un commit concreto |
+
+La imagen la construye GitHub Actions ([`.github/workflows/docker.yml`](.github/workflows/docker.yml)) para `amd64` y `arm64` en cada cambio de `main`.
 
 ### Variables de entorno
 
@@ -88,8 +94,8 @@ docker run -d --name mcpanel --network host --init --restart unless-stopped \
 
 ```
 navegador ──HTTP──▶ php -S (router.php)
-                      ├─ index.php   páginas (login, servidores, consola, archivos, startup, ajustes)
-                      └─ api.php     API JSON (polling cada 1 s de consola y estadísticas)
+  (app React)         ├─ dist/       la interfaz compilada (index.html + /app/*.js, *.css)
+                      └─ api.php     API JSON (sesión, servidores; polling cada 1 s de consola y estadísticas)
                                    │
            ┌───────────────────────┼─────────────────────────────┐
            ▼                       ▼                             ▼
@@ -125,10 +131,11 @@ navegador ──HTTP──▶ php -S (router.php)
 ### Estructura del código
 
 ```
-api.php, index.php, router.php   entrada HTTP
+api.php, router.php   entrada HTTP (API JSON y la app)
 lib/        Auth, Server (procesos y estadísticas), Files, Java, Software (MCJars), Modrinth, Backup, Playit, Job
-views/      plantillas PHP (layout, páginas)
-assets/     CSS y JS sin framework (consola, archivos, plugins, startup, servidores)
+web/        interfaz en React + TypeScript (Vite): pages/ (una por pantalla), components/, ui.tsx, api.ts
+dist/       la interfaz compilada (se incluye en el repositorio para poder usarlo sin Node)
+assets/     iconos del panel
 cli/        job.php (descargas, copias), boot.php (arranque), scheduler.php (copias automáticas)
 scripts/    run-server.sh, run-playit.sh
 start.sh    punto de entrada del contenedor
@@ -144,11 +151,14 @@ start.sh    punto de entrada del contenedor
 
 ## Desarrollo local
 
-Necesitas Linux o WSL con PHP 8.3+ (con los parches de octubre de 2026) y las extensiones `curl` y `posix`:
+Necesitas Linux o WSL con PHP 8.3+ (con los parches de octubre de 2026) y las extensiones `curl` y `posix`, y Node 24+ para la interfaz:
 
 ```bash
-DATA_DIR=$PWD/.data PANEL_PORT=8090 bash start.sh
+DATA_DIR=$PWD/.data PANEL_PORT=8090 bash start.sh   # API y panel en :8090
+cd web && npm ci && npm run dev                     # interfaz con recarga en vivo (usa la API de :8090)
 ```
+
+Antes de publicar, `cd web && npm run build` actualiza `dist/`. Para probar la imagen: `docker build -t mcpanel .`
 
 ## Logo
 

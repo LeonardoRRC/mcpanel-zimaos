@@ -1,32 +1,25 @@
-# MC Panel for ZimaOS. Upload mcpanel.tar.gz to /DATA/AppData/mcpanel/, then import this file in
-# App Store > "Instalación personalizada". On first start the panel is unpacked into app/.
-# To update: replace mcpanel.tar.gz, delete the app/ folder and restart the app.
+# MC Panel for ZimaOS / CasaOS: App Store > "Instalación personalizada" > Importar > Docker Compose.
+# The panel comes ready-made in the image; only your data lives on the disk (/DATA/AppData/mcpanel/data).
+# To update: in ZimaOS, "Actualizar" the app (pulls the newest image). Servers and settings are kept.
 name: mcpanel
 services:
   mcpanel:
-    image: php:8.5-cli
+    image: ghcr.io/leonardorrc/mcpanel:latest
     container_name: mcpanel
     # Host networking: the panel and every Minecraft port are reachable directly on the ZimaOS IP.
     network_mode: host
     init: true
     restart: unless-stopped
-    working_dir: /srv/mcpanel
-    command:
-      - bash
-      - -c
-      - >-
-        cd /srv/mcpanel && if [ ! -f app/start.sh ]; then mkdir -p app &&
-        tar -xzf mcpanel.tar.gz -C app --strip-components=1; fi; exec bash app/start.sh
     environment:
-      DATA_DIR: /srv/mcpanel/data
+      DATA_DIR: /data
       PANEL_PORT: "8090"
       PANEL_NAME: MC Panel
       PHP_CLI_SERVER_WORKERS: "8"
       TZ: America/Lima
     volumes:
       - type: bind
-        source: /DATA/AppData/mcpanel
-        target: /srv/mcpanel
+        source: /DATA/AppData/mcpanel/data
+        target: /data
 x-casaos:
   main: mcpanel
   architectures:

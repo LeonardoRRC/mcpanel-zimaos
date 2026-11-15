@@ -25,13 +25,66 @@ function server_or_404(): Server
     return Server::find((string)input('id', '')) ?? respond(['error' => 'Servidor no encontrado.'], 404);
 }
 
-if (!Auth::user()) {
-    respond(['error' => 'Sesión expirada.'], 401);
+/** A server as the web app sees it: its config plus what the pages need to render. */
+function server_view(Server $s): array
+{
+    return $s->cfg + [
+        'state' => $s->state(),
+        'address' => $s->address(),
+        'dir' => $s->dir(),
+        'label' => trim(Software::label($s->cfg['software']['type'] ?? '') . ' ' . ($s->cfg['software']['version'] ?? '')),
+        'kinds' => (object)Modrinth::kinds($s),
+        'nav_label' => Modrinth::navLabel($s),
+        'preview' => $s->startupPreview(),
+    ];
 }
+
 $action = (string)($_GET['a'] ?? '');
 $isPost = $_SERVER['REQUEST_METHOD'] === 'POST';
 if ($isPost && !Auth::checkCsrf($_SERVER['HTTP_X_CSRF'] ?? input('_csrf'))) {
     respond(['error' => 'Token CSRF inválido, recarga la página.'], 403);
+}
+
+// ---------------------------------------------------------- session (no login needed)
+try {
+    switch ($action) {
+        case 'session':
+            respond([
+                'setup' => Auth::needsSetup(),
+                'user' => Auth::user(),
+                'csrf' => Auth::csrf(),
+                'name' => APP_NAME,
+                'warning' => php_security_warning(),
+            ]);
+
+        case 'auth.setup':
+            $isPost || respond(['error' => 'POST requerido'], 405);
+            if ((string)input('password', '') !== (string)input('password2', '')) {
+                throw new RuntimeException('Las contraseñas no coinciden.');
+            }
+            $user = trim((string)input('username', ''));
+            Auth::createAdmin($user, (string)input('password', ''));
+            Auth::login($user, (string)input('password', ''));
+            respond(['ok' => true, 'user' => Auth::user(), 'csrf' => Auth::csrf()]);
+
+        case 'auth.login':
+            $isPost || respond(['error' => 'POST requerido'], 405);
+            if (!Auth::login(trim((string)input('username', '')), (string)input('password', ''))) {
+                respond(['error' => 'Usuario o contraseña incorrectos.'], 401);
+            }
+            respond(['ok' => true, 'user' => Auth::user(), 'csrf' => Auth::csrf()]);
+
+        case 'auth.logout':
+            $isPost || respond(['error' => 'POST requerido'], 405);
+            Auth::logout();
+            respond(['ok' => true]);
+    }
+} catch (Throwable $e) {
+    respond(['error' => $e->getMessage()], 400);
+}
+
+if (!Auth::user()) {
+    respond(['error' => 'Sesión expirada.'], 401);
 }
 // The session file is only needed for auth; release it so polling doesn't serialize requests.
 session_write_close();
@@ -40,7 +93,19 @@ try {
     switch ($action) {
         // ---------------------------------------------------------- servers
         case 'servers':
-            respond(array_map(fn(Server $s) => $s->cfg + ['state' => $s->state(), 'address' => $s->address()], Server::all()));
+            respond(array_map('server_view', Server::all()));
+
+        case 'meta':
+            // Catalogs and system facts the pages need (software types, intervals, sorts...).
+            $types = array_values(Software::types());
+            respond([
+                'types' => $types,
+                'groups' => Software::GROUPS,
+                'intervals' => Backup::INTERVALS,
+                'sorts' => Modrinth::SORTS,
+                'default_startup' => Server::DEFAULT_STARTUP,
+                'system' => ['data_dir' => DATA_DIR, 'php' => PHP_VERSION, 'cpus' => Server::cpuCount()],
+            ]);
 
         case 'server.create':
             $isPost || respond(['error' => 'POST requerido'], 405);
@@ -65,7 +130,7 @@ try {
             $data = (array)input('data', []);
             unset($data['id'], $data['created'], $data['playit'], $data['software']);
             $server->update($data);
-            respond(['ok' => true, 'server' => $server->cfg, 'preview' => $server->startupPreview()]);
+            respond(['ok' => true, 'server' => server_view($server), 'preview' => $server->startupPreview()]);
 
         case 'server.delete':
             $isPost || respond(['error' => 'POST requerido'], 405);

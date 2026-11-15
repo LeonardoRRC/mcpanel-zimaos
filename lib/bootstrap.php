@@ -217,9 +217,3 @@ function system_arch(): string
         default => 'x64',
     };
 }
-
-/** Asset URL with a version so browsers fetch the new file after an update. */
-function asset(string $path): string
-{
-    return 'assets/' . $path . '?v=' . (@filemtime(APP_ROOT . '/assets/' . $path) ?: 0);
-}
