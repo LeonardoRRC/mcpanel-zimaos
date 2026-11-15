@@ -20,32 +20,30 @@ function Icon({ url, kind, sm }: { url?: string; kind: string; sm?: boolean }) {
         : <span className={`${cls} placeholder`}><i className={`fa-solid ${(KIND_ICON[kind] ?? KIND_ICON.plugins)[0]}`} /></span>;
 }
 
-export function PluginsPage({ server, meta }: { server: Server; meta: Meta; reload: () => Promise<unknown> }) {
-    const kinds = server.kinds;
-    const keys = Object.keys(kinds);
-    if (!keys.length) {
+const WHO_TAKES: Record<string, string> = {
+    plugins: 'Cambia a Paper, Purpur, Spigot o Folia en',
+    mods: 'Cambia a Fabric, Quilt, Forge o NeoForge en',
+    datapacks: 'Los datapacks funcionan en cualquier servidor desde Minecraft 1.13 (no en proxies como Velocity). Cambia la versión en',
+};
+const KIND_TITLE: Record<string, string> = { plugins: 'Plugins', mods: 'Mods', datapacks: 'Datapacks' };
+
+/** Plugins, mods or datapacks of a server: each kind is its own page. */
+export function PluginsPage({ server, meta, kind }: { server: Server; meta: Meta; kind: string; reload: () => Promise<unknown> }) {
+    if (!server.kinds[kind]) {
         return <>
-            <div className="page-head"><h1>Plugins y mods</h1></div>
+            <div className="page-head"><h1>{KIND_TITLE[kind] ?? kind}</h1></div>
             <div className="card"><div className="empty">
-                <i className="fa-solid fa-puzzle-piece" />
-                <b style={{ color: 'var(--white)' }}>{server.label || 'Este servidor'}</b> no carga plugins, mods ni datapacks.<br />
-                Cambia a Paper o Purpur (plugins) o a Fabric, Forge o NeoForge (mods) en <a {...linkProps(`/s/${encodeURIComponent(server.id)}/startup`)}>Startup</a>.
+                <i className={`fa-solid ${(KIND_ICON[kind] ?? KIND_ICON.plugins)[1]}`} />
+                <b style={{ color: 'var(--white)' }}>{server.label || 'Este servidor'}</b> no carga {(KIND_TITLE[kind] ?? kind).toLowerCase()}.<br />
+                {WHO_TAKES[kind]} <a {...linkProps(`/s/${encodeURIComponent(server.id)}/startup`)}>Startup</a>.
             </div></div>
         </>;
     }
-    return <Mods server={server} meta={meta} kinds={kinds} />;
+    return <Mods key={kind} server={server} meta={meta} kind={kind} info={server.kinds[kind]} />;
 }
 
-function Mods({ server, meta, kinds }: { server: Server; meta: Meta; kinds: Record<string, Kind> }) {
+function Mods({ server, meta, kind, info }: { server: Server; meta: Meta; kind: string; info: Kind }) {
     const { attempt, confirm, open, watchJob } = useUI();
-    const storeKey = 'mcpanel.kind.' + server.id;
-    const [kind, setKindState] = useState(() => {
-        let k: string | null = null;
-        try { k = localStorage.getItem(storeKey); } catch { /* storage off */ }
-        return k && kinds[k] ? k : Object.keys(kinds)[0];
-    });
-    const setKind = (k: string) => { setKindState(k); try { localStorage.setItem(storeKey, k); } catch { /* storage off */ } };
-    const info = kinds[kind];
     const noun = KIND_NOUN[kind] ?? 'plugin';
     const projectUrl = (slug: string) => `https://modrinth.com/${info.project_type}/${encodeURIComponent(slug)}`;
     const [tab, setTab] = useState<'browse' | 'installed'>('browse');
@@ -113,17 +111,7 @@ function Mods({ server, meta, kinds }: { server: Server; meta: Meta; kinds: Reco
     const swLabel = server.label;
 
     return <>
-        <div className="page-head">
-            <h1>{server.nav_label ?? 'Plugins y mods'}</h1>
-            {Object.keys(kinds).length > 1 && (
-                <div className="actions seg">
-                    {Object.entries(kinds).map(([k, v]) => (
-                        <button key={k} type="button" className={`btn${k === kind ? ' btn-primary' : ''}`} onClick={() => setKind(k)}>
-                            <i className={`fa-solid ${(KIND_ICON[k] ?? KIND_ICON.plugins)[1]}`} /> {v.label}</button>
-                    ))}
-                </div>
-            )}
-        </div>
+        <div className="page-head"><h1>{info.label}</h1></div>
 
         <div className="tabs" role="tablist">
             <button type="button" className={`tab${tab === 'browse' ? ' active' : ''}`} role="tab" aria-selected={tab === 'browse'} onClick={() => setTab('browse')}><i className="fa-solid fa-compass" /> Explorar</button>

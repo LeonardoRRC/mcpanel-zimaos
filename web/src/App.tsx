@@ -17,11 +17,15 @@ import { SettingsPage } from './pages/Settings';
 const SERVER_PAGES: [string, string, string][] = [
     ['console', 'Consola', 'fa-terminal'],
     ['files', 'Archivos', 'fa-folder'],
-    ['plugins', 'Plugins', 'fa-puzzle-piece'], // label comes from the server: "Plugins y Datapacks"...
+    ['plugins', 'Plugins', 'fa-plug'],
+    ['mods', 'Mods', 'fa-cubes'],
+    ['datapacks', 'Datapacks', 'fa-scroll'],
     ['backups', 'Backups', 'fa-box-archive'],
     ['startup', 'Startup', 'fa-rocket'],
     ['settings', 'Ajustes', 'fa-gear'],
 ];
+/** Modrinth pages: shown only when the server can load that kind. */
+const KIND_PAGES = ['plugins', 'mods', 'datapacks'];
 const ACCOUNT_PAGES: [string, string, string][] = [
     ['servers', 'Mis servidores', 'fa-server'],
     ['account', 'Cuenta', 'fa-user'],
@@ -97,8 +101,7 @@ function Shell({ session, onLogout }: { session: Session; onLogout: () => void }
 
     useEffect(() => {
         if (m && servers && !server) navigate('/', true); // deleted or unknown server
-        const pageLabel = page === 'plugins' ? server?.nav_label ?? 'Plugins' : SERVER_PAGES.find(([k]) => k === page)?.[1];
-        const label = server ? `${server.name} | ${pageLabel}` : ACCOUNT_PAGES.find(([k]) => k === page)?.[1];
+        const label = server ? `${server.name} | ${SERVER_PAGES.find(([k]) => k === page)?.[1]}` : ACCOUNT_PAGES.find(([k]) => k === page)?.[1];
         document.title = `${label} · ${session.name}`;
     }); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -115,7 +118,7 @@ function Shell({ session, onLogout }: { session: Session; onLogout: () => void }
         if (server) {
             const props = { server, meta, reload };
             content = page === 'files' ? <FilesPage key={server.id} {...props} />
-                : page === 'plugins' ? <PluginsPage key={server.id} {...props} />
+                : KIND_PAGES.includes(page) ? <PluginsPage key={server.id + page} kind={page} {...props} />
                 : page === 'backups' ? <BackupsPage key={server.id} {...props} />
                 : page === 'startup' ? <StartupPage key={server.id} {...props} />
                 : page === 'settings' ? <SettingsPage key={server.id} {...props} />
@@ -136,9 +139,9 @@ function Shell({ session, onLogout }: { session: Session; onLogout: () => void }
                 {server && <>
                     <div className="nav-section">Gestión del servidor</div>
                     <nav className="nav">
-                        {SERVER_PAGES.map(([k, label, icon]) => (
+                        {SERVER_PAGES.filter(([k]) => !KIND_PAGES.includes(k) || server.kinds[k]).map(([k, label, icon]) => (
                             <a key={k} {...linkProps(serverLink(server, k))} className={page === k ? 'active' : ''}>
-                                <i className={`fa-solid ${icon}`} />{k === 'plugins' ? server.nav_label ?? label : label}
+                                <i className={`fa-solid ${icon}`} />{label}
                             </a>
                         ))}
                     </nav>
